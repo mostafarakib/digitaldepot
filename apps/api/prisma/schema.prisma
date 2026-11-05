@@ -1,0 +1,17 @@
+// This is your Prisma schema file.
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/client"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// No application models are defined in Phase 1.
+// Models will be introduced in Phase 4 (Product Catalogue).
+// Prisma migrations will be created when the first meaningful models are added.
