@@ -12,6 +12,8 @@
     "pretypecheck": "prisma generate",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
+    "test": "vitest run",
+    "seed:admin": "tsx src/scripts/seed-admin.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -20,21 +22,29 @@
   "dependencies": {
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
+    "argon2": "^0.45.2",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^5.3.0",
+    "express-rate-limit": "^8.7.3",
+    "jose": "^6.2.15",
     "pg": "^8.16.3",
     "pino": "^9.6.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
     "@types/pg": "^8.16.0",
+    "@types/supertest": "^7.2.1",
     "pino-pretty": "^13.0.0",
     "prisma": "7.10.1",
+    "supertest": "^7.3.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^5.1.0"
   }
 }
