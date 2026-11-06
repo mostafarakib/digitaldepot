@@ -76,10 +76,13 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
           <span className="text-primary font-medium">{tCommon('cart')}</span>
         </div>
 
-        <div className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 cursor-pointer">
+        <Link
+          href="/account"
+          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 cursor-pointer"
+        >
           <User className="size-5" />
           <span>{tCommon('account')}</span>
-        </div>
+        </Link>
       </div>
 
       {/* Slide-over Mobile Drawer for Categories */}

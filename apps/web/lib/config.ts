@@ -6,4 +6,8 @@ export const env = {
 
   /** Public API URL exposed to client components */
   publicApiUrl: process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000',
+
+  /** Storefront origin used for server-side BFF Origin validation */
+  storefrontOrigin:
+    process.env['STOREFRONT_ORIGIN'] ?? process.env['FRONTEND_URL'] ?? 'http://localhost:3000',
 } as const;

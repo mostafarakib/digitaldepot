@@ -222,5 +222,73 @@
     "errorDesc": "{url}-এ সংযোগ স্থাপন করা সম্ভব হয়নি। নিশ্চিত করুন এপিআই সার্ভার সচল আছে।",
     "systemConnectivity": "সিস্টেম সংযোগ",
     "phase1Verified": "পর্যায় ১ যাচাইকৃত"
+  },
+  "auth": {
+    "login": {
+      "title": "স্বাগতম",
+      "subtitle": "আপনার অর্ডার, উইশলিস্ট এবং অ্যাকাউন্ট সেটিংস দেখতে সাইন ইন করুন।",
+      "emailLabel": "ইমেইল ঠিকানা",
+      "emailPlaceholder": "name@example.com",
+      "passwordLabel": "পাসওয়ার্ড",
+      "passwordPlaceholder": "••••••••",
+      "forgotPassword": "পাসওয়ার্ড ভুলে গেছেন?",
+      "submitButton": "সাইন ইন করুন",
+      "submittingButton": "সাইন ইন হচ্ছে...",
+      "noAccountPrompt": "অ্যাকাউন্ট নেই?",
+      "signUpLink": "নতুন অ্যাকাউন্ট তৈরি করুন",
+      "registrationSuccessNotice": "অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে! অনুগ্রহ করে সাইন ইন করুন।",
+      "invalidCredentialsError": "ভুল ইমেইল বা পাসওয়ার্ড। আবার চেষ্টা করুন।",
+      "accountSuspendedError": "আপনার অ্যাকাউন্টটি স্থগিত করা হয়েছে। গ্রাহক সহায়তায় যোগাযোগ করুন।",
+      "genericError": "সাইন ইন করতে ব্যর্থ হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।"
+    },
+    "register": {
+      "title": "নতুন অ্যাকাউন্ট তৈরি করুন",
+      "subtitle": "অর্ডার ট্র্যাক করতে এবং নিরবচ্ছিন্ন কেনাকাটার সুবিধা পেতে যুক্ত হোন।",
+      "firstNameLabel": "নামের প্রথম অংশ",
+      "firstNamePlaceholder": "রহিম",
+      "lastNameLabel": "নামের শেষ অংশ",
+      "lastNamePlaceholder": "চৌধুরী",
+      "emailLabel": "ইমেইল ঠিকানা",
+      "emailPlaceholder": "name@example.com",
+      "passwordLabel": "পাসওয়ার্ড",
+      "passwordPlaceholder": "কমপক্ষে ৮টি অক্ষর",
+      "confirmPasswordLabel": "পাসওয়ার্ড নিশ্চিত করুন",
+      "confirmPasswordPlaceholder": "পাসওয়ার্ডটি পুনরায় লিখুন",
+      "submitButton": "অ্যাকাউন্ট তৈরি করুন",
+      "submittingButton": "অ্যাকাউন্ট তৈরি হচ্ছে...",
+      "hasAccountPrompt": "ইতিমধ্যে একটি অ্যাকাউন্ট আছে?",
+      "signInLink": "সাইন ইন করুন",
+      "emailConflictError": "এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট নিবন্ধিত আছে। সাইন ইন করুন।",
+      "genericError": "অ্যাকাউন্ট তৈরি করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।"
+    },
+    "account": {
+      "title": "আমার অ্যাকাউন্ট",
+      "subtitle": "আপনার প্রোফাইল তথ্য এবং পছন্দসমূহ পর্যালোচনা ও পরিবর্তন করুন।",
+      "personalInfoTitle": "ব্যক্তিগত বিবরণ",
+      "nameLabel": "পুরো নাম",
+      "emailLabel": "ইমেইল ঠিকানা",
+      "phoneLabel": "ফোন নম্বর",
+      "notProvided": "প্রদান করা হয়নি",
+      "roleLabel": "অ্যাকাউন্টের ধরণ",
+      "adminRole": "অ্যাডমিনিস্ট্রেটর",
+      "customerRole": "গ্রাহক",
+      "logoutButton": "সাইন আউট করুন",
+      "loggingOut": "সাইন আউট হচ্ছে...",
+      "adminPortalCta": "অ্যাডমিন পোর্টালে যান"
+    },
+    "menu": {
+      "account": "আমার অ্যাকাউন্ট",
+      "adminPortal": "অ্যাডমিন ড্যাশবোর্ড",
+      "orders": "অর্ডারসমূহ",
+      "signOut": "সাইন আউট"
+    },
+    "validation": {
+      "firstNameRequired": "প্রথম নাম আবশ্যক",
+      "lastNameRequired": "শেষ নাম আবশ্যক",
+      "emailInvalid": "সঠিক ইমেইল ঠিকানা প্রদান করুন",
+      "passwordMinLength": "পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে",
+      "passwordMaxLength": "পাসওয়ার্ড ১২৮ অক্ষরের বেশি হতে পারবে না",
+      "passwordsDoNotMatch": "পাসওয়ার্ড দুটি মিলছে না"
+    }
   }
 }

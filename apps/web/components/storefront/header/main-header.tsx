@@ -1,8 +1,9 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Logo } from '@/components/common/logo';
-import { Search, User, Heart, ShoppingCart, SlidersHorizontal } from 'lucide-react';
+import { Search, Heart, ShoppingCart, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { UserMenu } from '@/components/auth/user-menu';
 
 interface MainHeaderProps {
   onOpenMobileMenu?: () => void;
@@ -51,18 +52,10 @@ export function MainHeader({ onOpenMobileMenu }: MainHeaderProps) {
           </div>
         </div>
 
-        {/* User Entry Points (UI Placeholders) */}
+        {/* User Entry Points */}
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Account */}
-          <div className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
-            <div className="size-9 rounded-full bg-muted flex items-center justify-center text-foreground">
-              <User className="size-4 text-muted-foreground" />
-            </div>
-            <div className="hidden lg:flex flex-col text-left leading-tight">
-              <span className="text-[11px] text-muted-foreground font-normal">{t('account')}</span>
-              <span className="text-xs font-semibold text-foreground">{t('signIn')}</span>
-            </div>
-          </div>
+          <UserMenu />
 
           {/* Wishlist */}
           <div

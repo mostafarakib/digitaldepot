@@ -222,5 +222,73 @@
     "errorDesc": "Could not establish connection to {url}. Make sure the API server is running.",
     "systemConnectivity": "System Connectivity",
     "phase1Verified": "Phase 1 Verified"
+  },
+  "auth": {
+    "login": {
+      "title": "Welcome Back",
+      "subtitle": "Sign in to access your orders, wishlist, and account settings.",
+      "emailLabel": "Email Address",
+      "emailPlaceholder": "name@example.com",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "••••••••",
+      "forgotPassword": "Forgot password?",
+      "submitButton": "Sign In",
+      "submittingButton": "Signing In...",
+      "noAccountPrompt": "Don't have an account?",
+      "signUpLink": "Create an Account",
+      "registrationSuccessNotice": "Account created successfully! Please sign in with your email and password.",
+      "invalidCredentialsError": "Invalid email or password. Please verify and try again.",
+      "accountSuspendedError": "Your account has been suspended. Please contact customer support.",
+      "genericError": "Unable to sign in. Please try again later."
+    },
+    "register": {
+      "title": "Create an Account",
+      "subtitle": "Join DigitalDepot to track orders, save items, and enjoy seamless shopping.",
+      "firstNameLabel": "First Name",
+      "firstNamePlaceholder": "Rahim",
+      "lastNameLabel": "Last Name",
+      "lastNamePlaceholder": "Chowdhury",
+      "emailLabel": "Email Address",
+      "emailPlaceholder": "name@example.com",
+      "passwordLabel": "Password",
+      "passwordPlaceholder": "At least 8 characters",
+      "confirmPasswordLabel": "Confirm Password",
+      "confirmPasswordPlaceholder": "Re-enter your password",
+      "submitButton": "Create Account",
+      "submittingButton": "Creating Account...",
+      "hasAccountPrompt": "Already have an account?",
+      "signInLink": "Sign In",
+      "emailConflictError": "An account with this email already exists. Please sign in instead.",
+      "genericError": "Failed to create account. Please check your information and try again."
+    },
+    "account": {
+      "title": "My Account",
+      "subtitle": "View and manage your profile details and preferences.",
+      "personalInfoTitle": "Personal Details",
+      "nameLabel": "Full Name",
+      "emailLabel": "Email Address",
+      "phoneLabel": "Phone Number",
+      "notProvided": "Not provided",
+      "roleLabel": "Account Type",
+      "adminRole": "Administrator",
+      "customerRole": "Customer",
+      "logoutButton": "Sign Out",
+      "loggingOut": "Signing Out...",
+      "adminPortalCta": "Open Admin Portal"
+    },
+    "menu": {
+      "account": "My Account",
+      "adminPortal": "Admin Dashboard",
+      "orders": "Orders",
+      "signOut": "Sign Out"
+    },
+    "validation": {
+      "firstNameRequired": "First name is required",
+      "lastNameRequired": "Last name is required",
+      "emailInvalid": "Please enter a valid email address",
+      "passwordMinLength": "Password must be at least 8 characters",
+      "passwordMaxLength": "Password cannot exceed 128 characters",
+      "passwordsDoNotMatch": "Passwords do not match"
+    }
   }
 }

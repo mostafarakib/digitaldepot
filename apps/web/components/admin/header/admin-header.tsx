@@ -1,10 +1,14 @@
+'use client';
+
 import React from 'react';
 import { useTranslations } from 'next-intl';
-import { Menu, Search, UserCheck } from 'lucide-react';
+import { Menu, Search, UserCheck, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { LanguageSwitcher } from '@/components/common/language-switcher';
 import { ThemeToggle } from '@/components/common/theme-toggle';
+import { useAuth } from '@/components/auth/auth-provider';
+import { useRouter } from '@/i18n/routing';
 
 interface AdminHeaderProps {
   onOpenMobileSidebar: () => void;
@@ -12,6 +16,17 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
   const t = useTranslations('admin');
+  const { user, logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/');
+  };
+
+  const adminName = user?.profile?.firstName
+    ? `${user.profile.firstName} ${user.profile.lastName || ''}`.trim()
+    : user?.email || t('header.administrator');
 
   return (
     <header className="h-16 border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between gap-4">
@@ -63,18 +78,26 @@ export function AdminHeader({ onOpenMobileSidebar }: AdminHeaderProps) {
 
         <div className="h-4 w-px bg-border mx-1" />
 
-        <div className="flex items-center gap-2 pl-1 cursor-pointer">
+        <div className="flex items-center gap-2 pl-1">
           <div className="size-8 rounded-full bg-blue-600/15 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold text-xs border border-blue-500/30">
             <UserCheck className="size-4" />
           </div>
-          <div className="hidden sm:flex flex-col text-left leading-none">
-            <span className="text-xs font-semibold text-foreground">
-              {t('header.administrator')}
-            </span>
-            <span className="text-[10px] text-muted-foreground mt-0.5">
-              {t('header.superuser')}
+          <div className="hidden sm:flex flex-col text-left leading-none max-w-[140px]">
+            <span className="text-xs font-semibold text-foreground truncate">{adminName}</span>
+            <span className="text-[10px] text-muted-foreground mt-0.5 truncate">
+              {user?.email || t('header.superuser')}
             </span>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleLogout}
+            className="size-8 text-muted-foreground hover:text-destructive ml-1"
+            title="Sign Out"
+            aria-label="Sign Out"
+          >
+            <LogOut className="size-4" />
+          </Button>
         </div>
       </div>
     </header>
