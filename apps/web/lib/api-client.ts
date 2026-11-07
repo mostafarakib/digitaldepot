@@ -17,6 +17,19 @@ export class ApiError extends Error {
 // In-memory singleton CSRF token
 let currentCsrfToken: string | null = null;
 
+// In-memory single-flight promise to prevent concurrent duplicate bootstrap requests in the same tab
+let csrfBootstrapPromise: Promise<string> | null = null;
+
+// Specific recoverable CSRF error codes emitted by Express csrfProtection middleware
+export const RECOVERABLE_CSRF_CODES = new Set([
+  'CSRF_TOKEN_MISSING',
+  'CSRF_TOKEN_MALFORMED',
+  'CSRF_TOKEN_MISMATCH',
+  'CSRF_TOKEN_EXPIRED',
+  'CSRF_SIGNATURE_INVALID',
+  'CSRF_TOKEN_FUTURE',
+]);
+
 // In-memory single-flight promise to prevent concurrent duplicate refresh requests in the same tab
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -73,21 +86,32 @@ function updateCsrfFromHeader(res: Response): void {
 }
 
 /**
- * Ensures a valid CSRF token is available for state-changing requests.
- * Uses in-memory token -> cookie value -> bootstrap endpoint in order.
+ * Executes the network bootstrap call under lock coordination.
+ * Checks whether another tab already populated or rotated the cookie before issuing a fetch.
  */
-export async function ensureCsrfToken(): Promise<string> {
-  if (currentCsrfToken) {
-    return currentCsrfToken;
+async function executeBootstrap(options?: {
+  forceRefresh?: boolean;
+  failedToken?: string | null;
+}): Promise<string> {
+  // Under-lock check 1: Normal bootstrap check if another tab populated cookie
+  if (!options?.forceRefresh) {
+    const existingCookie = getCsrfTokenFromCookie();
+    if (existingCookie) {
+      currentCsrfToken = existingCookie;
+      return currentCsrfToken;
+    }
   }
 
-  const cookieToken = getCsrfTokenFromCookie();
-  if (cookieToken) {
-    currentCsrfToken = cookieToken;
-    return currentCsrfToken;
+  // Under-lock check 2: Forced recovery check if another tab already rotated the cookie
+  if (options?.forceRefresh && options?.failedToken) {
+    const existingCookie = getCsrfTokenFromCookie();
+    if (existingCookie && existingCookie !== options.failedToken) {
+      currentCsrfToken = existingCookie;
+      return currentCsrfToken;
+    }
   }
 
-  // Bootstrap fresh CSRF token from the BFF endpoint
+  // Perform the bootstrap fetch
   const res = await fetch('/api/auth/csrf', {
     method: 'GET',
     headers: { accept: 'application/json' },
@@ -99,7 +123,6 @@ export async function ensureCsrfToken(): Promise<string> {
     return currentCsrfToken;
   }
 
-  // Fallback to checking cookie if header was stripped
   const freshlySetCookie = getCsrfTokenFromCookie();
   if (freshlySetCookie) {
     currentCsrfToken = freshlySetCookie;
@@ -107,6 +130,125 @@ export async function ensureCsrfToken(): Promise<string> {
   }
 
   throw new ApiError('Failed to initialize CSRF token', 'CSRF_INIT_FAILED', 403);
+}
+
+/**
+ * Coordinates CSRF token bootstrap across tabs using the Web Locks API.
+ *
+ * Supported Environments (Web Locks API present):
+ * - Guarantees strict FIFO cross-tab mutual exclusion via 'dd_csrf_bootstrap_lock'.
+ * - Errors thrown inside executeBootstrap propagate directly without secondary execution.
+ * - Lock acquisition failures are isolated from bootstrap callback failures.
+ *
+ * Unsupported Environments (e.g. legacy browsers pre-2022, restricted iframes, Node SSR):
+ * - In-tab promise deduplication guarantees only one bootstrap runs per tab.
+ * - Cross-tab coordination is not supported by the platform; bootstrap executes directly.
+ * - Any cross-tab race is cleanly self-healed by apiClient's bounded single-retry recovery.
+ */
+async function coordinateCsrfBootstrap(options?: {
+  forceRefresh?: boolean;
+  failedToken?: string | null;
+}): Promise<string> {
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    let callbackInvoked = false;
+
+    try {
+      return await navigator.locks.request('dd_csrf_bootstrap_lock', async () => {
+        callbackInvoked = true;
+        return await executeBootstrap(options);
+      });
+    } catch (err) {
+      if (callbackInvoked) {
+        // The error occurred INSIDE executeBootstrap (e.g. network failure or server 502).
+        // Propagate the error immediately. NEVER execute a second time outside the lock.
+        throw err;
+      }
+      // The Web Locks API call itself rejected before the callback ran
+      // (e.g. NotSupportedError or SecurityError in restricted iframe context).
+      // Fall back to direct execution in this restricted environment.
+      return await executeBootstrap(options);
+    }
+  }
+
+  // Web Locks API is not available (documented environment limitation)
+  return await executeBootstrap(options);
+}
+
+/**
+ * Ensures a valid CSRF token is available for state-changing requests.
+ * Uses in-memory token -> cookie value -> coordinated bootstrap in order.
+ * Safely serializes normal and forced recovery requests without redundant rotations.
+ */
+export async function ensureCsrfToken(options?: {
+  forceRefresh?: boolean;
+  failedToken?: string | null;
+}): Promise<string> {
+  const isForced = options?.forceRefresh === true;
+  const failedToken = options?.failedToken ?? null;
+
+  // 1. Fast path for normal requests: adopt valid cookie if present
+  if (!isForced) {
+    const cookieToken = getCsrfTokenFromCookie();
+    if (cookieToken) {
+      currentCsrfToken = cookieToken;
+      return currentCsrfToken;
+    }
+    if (currentCsrfToken) {
+      return currentCsrfToken;
+    }
+  }
+
+  // 2. Fast path for forced recovery: check if another tab/request already installed a newer cookie
+  if (isForced && failedToken) {
+    const cookieToken = getCsrfTokenFromCookie();
+    if (cookieToken && cookieToken !== failedToken) {
+      currentCsrfToken = cookieToken;
+      return currentCsrfToken;
+    }
+  }
+
+  // 3. Serialize with existing in-flight bootstrap if one is active
+  if (csrfBootstrapPromise) {
+    try {
+      await csrfBootstrapPromise;
+    } catch {
+      // In-flight bootstrap failure caught; error handling/recovery proceeds below
+    }
+
+    if (!isForced) {
+      const cookie = getCsrfTokenFromCookie();
+      if (cookie) {
+        currentCsrfToken = cookie;
+        return currentCsrfToken;
+      }
+      if (currentCsrfToken) {
+        return currentCsrfToken;
+      }
+    } else {
+      // Forced recovery: compare current cookie against exact failedToken
+      const cookie = getCsrfTokenFromCookie();
+      if (cookie && cookie !== failedToken) {
+        currentCsrfToken = cookie;
+        return currentCsrfToken;
+      }
+      // Cookie is still equal to failedToken (or null); proceed to execute forced bootstrap
+    }
+  }
+
+  // 4. Double check if another caller initiated a promise while awaiting
+  if (csrfBootstrapPromise) {
+    return ensureCsrfToken(options);
+  }
+
+  // 5. Initiate new coordinated bootstrap promise
+  const promise = coordinateCsrfBootstrap(options).finally(() => {
+    if (csrfBootstrapPromise === promise) {
+      csrfBootstrapPromise = null;
+    }
+  });
+  csrfBootstrapPromise = promise;
+
+  return promise;
 }
 
 /**
@@ -222,6 +364,7 @@ export async function coordinateRefresh(): Promise<boolean> {
 
 export interface RequestOptions extends RequestInit {
   _isRetry?: boolean;
+  _isCsrfRetry?: boolean;
 }
 
 const EXCLUDED_AUTH_PATHS = new Set([
@@ -238,6 +381,7 @@ const EXCLUDED_AUTH_PATHS = new Set([
  * - Extracts rotated CSRF tokens strictly from response headers.
  * - Handles 401 responses with bounded, single-flight silent refresh.
  * - Enforces retry boundaries (max 1 refresh, max 1 retry, no refresh for login/register/logout).
+ * - Implements narrowly-scoped CSRF recovery for mutations (max 1 retry).
  */
 export async function apiClient<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = (options.method || 'GET').toUpperCase();
@@ -251,8 +395,11 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
     headers.set('x-csrf-token', csrfToken);
   }
 
+  // Strip internal orchestration flags from options passed to window.fetch
+  const { _isRetry, _isCsrfRetry, ...cleanOptions } = options;
+
   const fetchOptions: RequestInit = {
-    ...options,
+    ...cleanOptions,
     method,
     headers,
   };
@@ -293,6 +440,30 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
     throw new ApiError('Unexpected response from server', 'INVALID_JSON_RESPONSE', res.status);
   }
 
+  // Narrowly scoped CSRF failure recovery for mutations
+  if (
+    isMutation &&
+    res.status === 403 &&
+    !options._isCsrfRetry &&
+    data &&
+    !data.success &&
+    data.error &&
+    RECOVERABLE_CSRF_CODES.has(data.error.code)
+  ) {
+    // Capture exact token used in failed request before resetting local state
+    const failedToken = headers.get('x-csrf-token') || currentCsrfToken;
+    currentCsrfToken = null;
+
+    // Bootstrap or adopt fresh CSRF token under lock coordination
+    await ensureCsrfToken({ forceRefresh: true, failedToken });
+
+    // Retry the mutation exactly once with original body and headers
+    return apiClient<T>(path, {
+      ...options,
+      _isCsrfRetry: true,
+    });
+  }
+
   if (!res.ok || !data.success) {
     const error = (!data.success && data.error) || {
       code: 'API_ERROR',
@@ -303,4 +474,3 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
 
   return data.data;
 }
-

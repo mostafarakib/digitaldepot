@@ -25,6 +25,7 @@ export function LoginForm() {
   const [serverError, setServerError] = useState<string | null>(null);
 
   const registeredNotice = searchParams.get('registered') === 'true';
+  const resetNotice = searchParams.get('reset') === 'true';
   const rawReturnUrl = searchParams.get('returnUrl');
 
   // Sanitize returnUrl: must be relative, never protocol-relative
@@ -78,6 +79,17 @@ export function LoginForm() {
         </div>
       )}
 
+      {resetNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4 text-emerald-800 dark:text-emerald-300"
+        >
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+          <p className="text-sm font-medium">{t('passwordResetSuccessNotice')}</p>
+        </div>
+      )}
+
       {serverError && (
         <div
           role="alert"
@@ -114,9 +126,12 @@ export function LoginForm() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">{t('passwordLabel')}</Label>
-            <span className="text-xs text-muted-foreground cursor-not-allowed">
+            <Link
+              href="/forgot-password"
+              className="text-xs text-primary hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
+            >
               {t('forgotPassword')}
-            </span>
+            </Link>
           </div>
           <div className="relative">
             <Input
@@ -171,4 +186,3 @@ export function LoginForm() {
     </div>
   );
 }
-

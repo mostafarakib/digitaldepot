@@ -6,6 +6,7 @@ import { MainHeader } from '@/components/storefront/header/main-header';
 import { CategoryNav } from '@/components/storefront/header/category-nav';
 import { StorefrontFooter } from '@/components/storefront/footer/storefront-footer';
 import { MobileNav } from '@/components/storefront/mobile-nav';
+import { StorefrontVerificationBanner } from '@/components/auth/storefront-verification-banner';
 
 export function StorefrontShell({ children }: { children: React.ReactNode }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -15,6 +16,7 @@ export function StorefrontShell({ children }: { children: React.ReactNode }) {
       <TopBar />
       <MainHeader onOpenMobileMenu={() => setMobileMenuOpen(true)} />
       <CategoryNav />
+      <StorefrontVerificationBanner />
       <main className="flex-1">{children}</main>
       <StorefrontFooter />
       <MobileNav isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />

@@ -65,8 +65,96 @@ export async function authenticate(
     role: session.user.role,
     profile: session.user.profile,
     sessionId: session.id,
+    emailVerified: session.user.emailVerified,
   };
 
+  next();
+}
+
+/**
+ * Optional authentication middleware: populates req.user if a valid, active session exists,
+ * but allows unauthenticated execution to continue if the token is missing, expired, or invalid.
+ */
+export async function optionalAuthenticate(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    let token: string | undefined = req.cookies?.[COOKIE_NAMES.ACCESS_TOKEN];
+
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+
+    if (!token) {
+      return next();
+    }
+
+    const payload = await verifyAccessToken(token);
+
+    const session = await prisma.session.findUnique({
+      where: { id: payload.sid },
+      include: {
+        user: {
+          include: { profile: true },
+        },
+      },
+    });
+
+    if (
+      session &&
+      session.revokedAt === null &&
+      session.expiresAt > new Date() &&
+      session.userId === payload.sub &&
+      session.user.status === 'ACTIVE'
+    ) {
+      req.user = {
+        id: session.user.id,
+        email: session.user.email,
+        role: session.user.role,
+        profile: session.user.profile,
+        sessionId: session.id,
+        emailVerified: session.user.emailVerified,
+      };
+    }
+  } catch {
+    // Silently continue for optional authentication on expired/invalid access tokens
+  }
+
+  next();
+}
+
+/**
+ * Enforces authoritative database-backed email verification.
+ * Zero role bypass: unverified users (including admins) receive 403 EMAIL_NOT_VERIFIED.
+ */
+export async function requireVerifiedEmail(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): Promise<void> {
+  if (!req.user) {
+    throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+  }
+
+  // Authoritative check against fresh database record (zero role bypass)
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { emailVerified: true },
+  });
+
+  if (!user || !user.emailVerified) {
+    throw new ForbiddenError(
+      'EMAIL_NOT_VERIFIED',
+      'Email verification is required to perform this action',
+    );
+  }
+
+  req.user.emailVerified = true;
   next();
 }
 

@@ -63,4 +63,3 @@ export function AdminAuthGate({ returnUrl = '/admin' }: AdminAuthGateProps) {
     </div>
   );
 }
-

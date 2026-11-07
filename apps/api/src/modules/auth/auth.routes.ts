@@ -1,11 +1,18 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { authController } from './auth.controller.js';
-import { authenticate } from '../../middleware/auth.js';
+import { authenticate, optionalAuthenticate } from '../../middleware/auth.js';
 import { csrfProtection } from '../../middleware/csrf.js';
 import {
   loginIpLimiter,
   loginTargetedLimiter,
   registerLimiter,
+  forgotPasswordIpLimiter,
+  forgotPasswordTargetedLimiter,
+  resetPasswordIpLimiter,
+  changePasswordLimiter,
+  verifyEmailIpLimiter,
+  resendVerificationIpLimiter,
+  resendVerificationTargetedLimiter,
 } from '../../middleware/rate-limiter.js';
 import { verifyAccessToken } from '../../lib/crypto.js';
 import { COOKIE_NAMES } from '../../lib/cookies.js';
@@ -31,6 +38,7 @@ async function optionalAuth(req: Request, _res: Response, next: NextFunction): P
         email: '',
         role: 'CUSTOMER',
         profile: null,
+        emailVerified: false,
       } satisfies AuthenticatedUser;
     }
   } catch {
@@ -67,6 +75,65 @@ router.post('/refresh', csrfProtection, (req, res, next) => {
 // GET /api/v1/auth/me
 router.get('/me', authenticate, (req, res, next) => {
   authController.me(req, res).catch(next);
+});
+
+// POST /api/v1/auth/forgot-password
+router.post(
+  '/forgot-password',
+  csrfProtection,
+  forgotPasswordIpLimiter,
+  forgotPasswordTargetedLimiter,
+  (req, res, next) => {
+    authController.forgotPassword(req, res).catch(next);
+  },
+);
+
+// POST /api/v1/auth/reset-password
+router.post('/reset-password', csrfProtection, resetPasswordIpLimiter, (req, res, next) => {
+  authController.resetPassword(req, res).catch(next);
+});
+
+// POST /api/v1/auth/verify-email
+router.post('/verify-email', csrfProtection, verifyEmailIpLimiter, (req, res, next) => {
+  authController.verifyEmail(req, res).catch(next);
+});
+
+// POST /api/v1/auth/resend-verification
+router.post(
+  '/resend-verification',
+  optionalAuthenticate,
+  csrfProtection,
+  resendVerificationIpLimiter,
+  resendVerificationTargetedLimiter,
+  (req, res, next) => {
+    authController.resendVerification(req, res).catch(next);
+  },
+);
+
+// POST /api/v1/auth/change-password
+router.post(
+  '/change-password',
+  authenticate,
+  csrfProtection,
+  changePasswordLimiter,
+  (req, res, next) => {
+    authController.changePassword(req, res).catch(next);
+  },
+);
+
+// GET /api/v1/auth/sessions
+router.get('/sessions', authenticate, (req, res, next) => {
+  authController.listSessions(req, res).catch(next);
+});
+
+// DELETE /api/v1/auth/sessions/:id
+router.delete('/sessions/:id', authenticate, csrfProtection, (req, res, next) => {
+  authController.revokeSession(req, res).catch(next);
+});
+
+// POST /api/v1/auth/sessions/revoke-others
+router.post('/sessions/revoke-others', authenticate, csrfProtection, (req, res, next) => {
+  authController.revokeOtherSessions(req, res).catch(next);
 });
 
 export default router;

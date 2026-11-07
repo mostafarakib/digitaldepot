@@ -1,8 +1,13 @@
+import path from 'path';
+import { config } from 'dotenv';
 import pg from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/client/client.js';
 
 // Load test environment variables
+config();
+config({ path: path.resolve(import.meta.dirname, '../../.env') });
+
 const testDbUrl = process.env.TEST_DATABASE_URL;
 if (!testDbUrl) {
   throw new Error('FATAL: TEST_DATABASE_URL environment variable is required for tests');
@@ -41,7 +46,7 @@ export async function cleanDatabase(): Promise<void> {
     throw new Error('Refusing to truncate non-test database!');
   }
   await testPrisma.$executeRawUnsafe(`
-    TRUNCATE TABLE "RefreshToken", "Session", "CustomerProfile", "User" CASCADE;
+    TRUNCATE TABLE "SecurityToken", "RefreshToken", "Session", "CustomerProfile", "User" CASCADE;
   `);
 }
 

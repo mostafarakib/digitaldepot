@@ -22,6 +22,11 @@ enum UserStatus {
   SUSPENDED
 }
 
+enum SecurityTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
 model User {
   id              String           @id @default(cuid())
   email           String           @unique
@@ -32,6 +37,7 @@ model User {
   emailVerifiedAt DateTime?
   profile         CustomerProfile?
   sessions        Session[]
+  securityTokens  SecurityToken[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 }
@@ -79,4 +85,18 @@ model RefreshToken {
 
   @@index([sessionId])
   @@index([familyId])
+}
+
+model SecurityToken {
+  id         String            @id @default(cuid())
+  userId     String
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       SecurityTokenType
+  tokenHash  String            @unique
+  consumedAt DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime          @default(now())
+
+  @@index([userId, type])
+  @@index([expiresAt])
 }

@@ -16,9 +16,12 @@ const redactOptions = {
     '*.accessToken',
     '*.csrfToken',
     '*.rawToken',
+    '*.apiKey',
     'password',
     'token',
     'refreshToken',
+    'apiKey',
+    'resendApiKey',
   ],
   censor: '[REDACTED]',
 };

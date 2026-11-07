@@ -6,6 +6,7 @@ export interface AuthenticatedUser {
   role: Role;
   profile: CustomerProfile | null;
   sessionId: string;
+  emailVerified: boolean;
 }
 
 declare global {

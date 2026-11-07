@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import { useRouter, Link } from '@/i18n/routing';
 import { registerFormSchema, type RegisterFormInput } from '@/lib/auth-schemas';
@@ -17,6 +17,7 @@ import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 export function RegisterForm() {
   const t = useTranslations('auth.register');
   const tValidation = useTranslations('auth.validation');
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { register: registerUser } = useAuth();
@@ -54,6 +55,7 @@ export function RegisterForm() {
         lastName: values.lastName,
         email: values.email,
         password: values.password,
+        locale: locale === 'bn' ? 'bn' : 'en',
       });
 
       const redirectPath = `/login?registered=true${
@@ -234,4 +236,3 @@ export function RegisterForm() {
     </div>
   );
 }
-

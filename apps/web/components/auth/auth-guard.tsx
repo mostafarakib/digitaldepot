@@ -40,4 +40,3 @@ export function AuthGuard({ children, returnUrl }: AuthGuardProps) {
 
   return <>{children}</>;
 }
-

@@ -1,6 +1,15 @@
 import type { Request, Response } from 'express';
 import { authService } from './auth.service.js';
-import { registerSchema, loginSchema } from './auth.schemas.js';
+import {
+  registerSchema,
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  changePasswordSchema,
+  revokeSessionParamsSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
+} from './auth.schemas.js';
 import { setAuthCookies, clearAuthCookies, COOKIE_NAMES } from '../../lib/cookies.js';
 import { rotateCsrfToken } from '../../middleware/csrf.js';
 import { UnauthorizedError } from '../../lib/errors.js';
@@ -211,6 +220,203 @@ export class AuthController {
       success: true,
       data: {
         user: req.user,
+      },
+    });
+  }
+
+  /**
+   * POST /api/v1/auth/forgot-password
+   * Requests a password reset link. Always returns generic success response.
+   */
+  async forgotPassword(req: Request, res: Response): Promise<void> {
+    const input = forgotPasswordSchema.parse(req.body);
+    const result = await authService.forgotPassword(input);
+
+    res.json({
+      success: true,
+      data: {
+        message: result.message,
+      },
+    });
+  }
+
+  /**
+   * POST /api/v1/auth/reset-password
+   * Resets password using single-use token, revokes active sessions, and rotates CSRF.
+   */
+  async resetPassword(req: Request, res: Response): Promise<void> {
+    const input = resetPasswordSchema.parse(req.body);
+    const result = await authService.resetPassword(input);
+
+    // Clear stale auth cookies
+    clearAuthCookies(res);
+
+    // Rotate CSRF token across boundary
+    const csrfToken = rotateCsrfToken(res);
+
+    res.json({
+      success: true,
+      data: {
+        message: result.message,
+        csrfToken,
+      },
+    });
+  }
+
+  /**
+   * POST /api/v1/auth/change-password
+   * Authenticated password change, revoking other sessions and rotating current refresh token.
+   */
+  async changePassword(req: Request, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+    }
+
+    const input = changePasswordSchema.parse(req.body);
+    const clientIp = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    const userAgent = req.headers['user-agent'];
+    const rawRefreshToken = req.cookies?.[COOKIE_NAMES.REFRESH_TOKEN];
+
+    const result = await authService.changePassword(
+      req.user.id,
+      req.user.sessionId,
+      rawRefreshToken,
+      input,
+      clientIp,
+      userAgent,
+    );
+
+    if (result.sessionPreserved && result.tokens) {
+      setAuthCookies(res, result.tokens);
+      rotateCsrfToken(res);
+      res.json({
+        success: true,
+        data: {
+          message: 'Password changed successfully. Other active sessions have been signed out.',
+        },
+      });
+    } else {
+      clearAuthCookies(res);
+      rotateCsrfToken(res);
+      res.json({
+        success: true,
+        data: {
+          message: input.revokeAllSessions
+            ? 'Password changed successfully. All sessions have been signed out.'
+            : 'Password changed successfully. Your session could not be renewed and you must log in again.',
+        },
+      });
+    }
+  }
+
+  /**
+   * GET /api/v1/auth/sessions
+   * Lists active sessions for the authenticated user.
+   */
+  async listSessions(req: Request, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+    }
+
+    const sessions = await authService.listSessions(req.user.id, req.user.sessionId);
+
+    res.json({
+      success: true,
+      data: {
+        sessions,
+      },
+    });
+  }
+
+  /**
+   * DELETE /api/v1/auth/sessions/:id
+   * Revokes a specific session belonging to the authenticated user.
+   */
+  async revokeSession(req: Request, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+    }
+
+    const { id } = revokeSessionParamsSchema.parse(req.params);
+    const result = await authService.revokeSession(req.user.id, req.user.sessionId, id);
+
+    if (result.isCurrentSession) {
+      clearAuthCookies(res);
+      rotateCsrfToken(res);
+      res.json({
+        success: true,
+        data: {
+          message: 'Current session revoked successfully',
+          isCurrentSession: true,
+        },
+      });
+    } else {
+      res.json({
+        success: true,
+        data: {
+          message: 'Session revoked successfully',
+          isCurrentSession: false,
+        },
+      });
+    }
+  }
+
+  /**
+   * POST /api/v1/auth/sessions/revoke-others
+   * Revokes all active sessions for the user except the calling session.
+   */
+  async revokeOtherSessions(req: Request, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+    }
+
+    const result = await authService.revokeOtherSessions(req.user.id, req.user.sessionId);
+
+    rotateCsrfToken(res);
+
+    res.json({
+      success: true,
+      data: {
+        message: 'All other sessions have been revoked',
+        revokedCount: result.revokedCount,
+      },
+    });
+  }
+
+  /**
+   * POST /api/v1/auth/verify-email
+   * Verifies customer email address using single-use security token.
+   */
+  async verifyEmail(req: Request, res: Response): Promise<void> {
+    const input = verifyEmailSchema.parse(req.body);
+    const result = await authService.verifyEmail(input);
+
+    rotateCsrfToken(res);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        message: result.message,
+        emailVerified: result.emailVerified,
+      },
+    });
+  }
+
+  /**
+   * POST /api/v1/auth/resend-verification
+   * Resends verification email for unverified accounts.
+   */
+  async resendVerification(req: Request, res: Response): Promise<void> {
+    const input = resendVerificationSchema.parse(req.body);
+    const authenticatedUserId = req.user?.id;
+    const result = await authService.resendVerification(input, authenticatedUserId);
+
+    rotateCsrfToken(res);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        message: result.message,
       },
     });
   }

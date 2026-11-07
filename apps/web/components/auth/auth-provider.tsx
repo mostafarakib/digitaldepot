@@ -6,6 +6,7 @@ import type {
   AuthenticatedUser,
   AuthContextValue,
   RegisterResult,
+  RegisterData,
   LoginResult,
 } from '@/lib/auth-types';
 
@@ -89,27 +90,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(
-    async (data: {
-      firstName: string;
-      lastName: string;
-      email: string;
-      password: string;
-    }): Promise<RegisterResult> => {
-      setIsLoading(true);
-      try {
-        const result = await apiClient<RegisterResult>('/api/auth/register', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(data),
-        });
-        return result;
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [],
-  );
+  const register = useCallback(async (data: RegisterData): Promise<RegisterResult> => {
+    setIsLoading(true);
+    try {
+      const result = await apiClient<RegisterResult>('/api/auth/register', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      return result;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const logout = useCallback(async () => {
     setIsLoading(true);
@@ -149,8 +142,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       register,
       logout,
       refreshSession,
+      refreshUser: fetchCurrentUser,
     }),
-    [user, isLoading, login, register, logout, refreshSession],
+    [user, isLoading, login, register, logout, refreshSession, fetchCurrentUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
