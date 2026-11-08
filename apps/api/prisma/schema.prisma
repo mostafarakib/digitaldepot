@@ -36,10 +36,30 @@ model User {
   emailVerified   Boolean          @default(false)
   emailVerifiedAt DateTime?
   profile         CustomerProfile?
+  addresses       Address[]
   sessions        Session[]
   securityTokens  SecurityToken[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+}
+
+model Address {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipientName String
+  phone         String
+  divisionId    String
+  districtId    String
+  upazila       String
+  streetAddress String
+  postalCode    String?
+  label         String?
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
 }
 
 model CustomerProfile {

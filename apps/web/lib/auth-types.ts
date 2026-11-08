@@ -87,3 +87,69 @@ export interface AuthContextValue {
   refreshSession: () => Promise<boolean>;
   refreshUser: () => Promise<void>;
 }
+
+export interface AddressItem {
+  id: string;
+  recipientName: string;
+  phone: string;
+  divisionId: string;
+  divisionNameEn: string;
+  divisionNameBn: string;
+  districtId: string;
+  districtNameEn: string;
+  districtNameBn: string;
+  upazila: string;
+  streetAddress: string;
+  postalCode: string | null;
+  label: string | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AddressListResponse {
+  addresses: AddressItem[];
+  total: number;
+  maxQuota: number;
+}
+
+export interface DistrictItem {
+  id: string;
+  nameEn: string;
+  nameBn: string;
+}
+
+export interface DivisionItem {
+  id: string;
+  nameEn: string;
+  nameBn: string;
+  districts: DistrictItem[];
+}
+
+export interface BangladeshDivisionsResponse {
+  divisions: DivisionItem[];
+}
+
+export interface CreateAddressPayload {
+  recipientName: string;
+  phone: string;
+  divisionId: string;
+  districtId: string;
+  upazila: string;
+  streetAddress: string;
+  postalCode: string | null;
+  label: string | null;
+  isDefault: boolean;
+}
+
+export interface UpdateAddressPayload {
+  recipientName?: string;
+  phone?: string;
+  divisionId?: string;
+  districtId?: string;
+  upazila?: string;
+  streetAddress?: string;
+  postalCode?: string | null;
+  label?: string | null;
+  isDefault?: boolean;
+}

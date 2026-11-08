@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAuth } from './auth-provider';
 import { useRouter, Link } from '@/i18n/routing';
@@ -19,8 +19,10 @@ import {
   AlertCircle,
   KeyRound,
   Shield,
+  MapPin,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import type { AddressListResponse } from '@/lib/auth-types';
 
 export function AccountView() {
   const t = useTranslations('auth.account');
@@ -30,6 +32,24 @@ export function AccountView() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendStatus, setResendStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [addressCount, setAddressCount] = useState<number | null>(null);
+  const [defaultAddressSummary, setDefaultAddressSummary] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.role === 'CUSTOMER') {
+      apiClient<AddressListResponse>('/api/account/addresses')
+        .then((res) => {
+          setAddressCount(res.total);
+          const def = res.addresses.find((a) => a.isDefault);
+          if (def) {
+            setDefaultAddressSummary(`${def.recipientName} • ${def.upazila}`);
+          }
+        })
+        .catch(() => {
+          // Gracefully ignore error in overview
+        });
+    }
+  }, [user?.role]);
 
   if (!user) {
     return null;
@@ -148,9 +168,19 @@ export function AccountView() {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg font-semibold">{t('personalInfoTitle')}</CardTitle>
-            <CardDescription>{user.email}</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+            <div>
+              <CardTitle className="text-lg font-semibold">{t('personalInfoTitle')}</CardTitle>
+              <CardDescription>{user.email}</CardDescription>
+            </div>
+            {user.role === 'CUSTOMER' && (
+              <Button asChild size="sm" variant="outline" className="gap-1.5 text-xs">
+                <Link href="/account/profile">
+                  <User className="h-3.5 w-3.5" />
+                  {t('editProfileCta')}
+                </Link>
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-3 rounded-lg border border-border p-3">
@@ -243,6 +273,47 @@ export function AccountView() {
               </Button>
             </CardContent>
           </Card>
+
+          {user.role === 'CUSTOMER' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-primary" />
+                  {t('addressesTitle')}
+                </CardTitle>
+                <CardDescription>{t('addressesDescription')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
+                  <div>
+                    <p className="font-medium text-foreground">
+                      {defaultAddressSummary ? defaultAddressSummary : t('noAddressesSaved')}
+                    </p>
+                    {addressCount !== null && (
+                      <p className="text-xs text-muted-foreground">
+                        {t('savedAddressesCount', { count: addressCount, max: 10 })}
+                      </p>
+                    )}
+                  </div>
+                  {defaultAddressSummary && (
+                    <Badge variant="outline" className="text-xs border-primary/50 text-primary">
+                      Default
+                    </Badge>
+                  )}
+                </div>
+
+                <Button asChild variant="outline" className="w-full justify-between">
+                  <Link href="/account/addresses">
+                    <span className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      {t('manageAddressesCta')}
+                    </span>
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
