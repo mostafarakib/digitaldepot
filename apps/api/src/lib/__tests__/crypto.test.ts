@@ -7,6 +7,12 @@ import {
   hashToken,
   signAccessToken,
   verifyAccessToken,
+  encryptGcm,
+  decryptGcm,
+  generatePkce,
+  generateOAuthState,
+  verifyOAuthStateHmac,
+  isValidPrefix,
 } from '../crypto.js';
 
 describe('Crypto Utilities', () => {
@@ -74,6 +80,97 @@ describe('Crypto Utilities', () => {
       const tampered = token.slice(0, -5) + 'abcde';
 
       await expect(verifyAccessToken(tampered)).rejects.toThrow();
+    });
+  });
+
+  describe('AES-256-GCM Encryption and Decryption', () => {
+    const validSecretHex = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+    it('encrypts and successfully decrypts a plaintext string', () => {
+      const plaintext = 'super-secret-code-verifier-string-123456789';
+      const encrypted = encryptGcm(plaintext, validSecretHex);
+
+      expect(encrypted.ciphertext).toBeDefined();
+      expect(encrypted.iv).toHaveLength(24); // 12 bytes = 24 hex chars
+      expect(encrypted.tag).toHaveLength(32); // 16 bytes = 32 hex chars
+
+      const decrypted = decryptGcm(encrypted, validSecretHex);
+      expect(decrypted).toBe(plaintext);
+    });
+
+    it('fails decryption if ciphertext is tampered with', () => {
+      const plaintext = 'sensitive-token-payload';
+      const encrypted = encryptGcm(plaintext, validSecretHex);
+
+      const tamperedCiphertext =
+        encrypted.ciphertext.slice(0, -2) + (encrypted.ciphertext.slice(-2) === 'aa' ? 'bb' : 'aa');
+      expect(() =>
+        decryptGcm({ ...encrypted, ciphertext: tamperedCiphertext }, validSecretHex),
+      ).toThrow();
+    });
+
+    it('fails decryption if tag is tampered with', () => {
+      const plaintext = 'sensitive-token-payload';
+      const encrypted = encryptGcm(plaintext, validSecretHex);
+
+      const tamperedTag =
+        encrypted.tag.slice(0, -2) + (encrypted.tag.slice(-2) === 'aa' ? 'bb' : 'aa');
+      expect(() => decryptGcm({ ...encrypted, tag: tamperedTag }, validSecretHex)).toThrow();
+    });
+
+    it('rejects keys that are not 32 bytes', () => {
+      expect(() => encryptGcm('test', 'short-hex')).toThrow(
+        'Encryption secret must be exactly 32 bytes',
+      );
+      expect(() => decryptGcm({ ciphertext: 'aa', iv: 'bb', tag: 'cc' }, 'short-hex')).toThrow(
+        'Encryption secret must be exactly 32 bytes',
+      );
+    });
+  });
+
+  describe('PKCE Generation', () => {
+    it('generates a valid base64url code verifier and S256 code challenge', () => {
+      const { codeVerifier, codeChallenge } = generatePkce();
+
+      expect(codeVerifier).toHaveLength(43);
+      expect(codeChallenge).toBeDefined();
+      expect(/^[A-Za-z0-9_-]+$/.test(codeVerifier)).toBe(true);
+      expect(/^[A-Za-z0-9_-]+$/.test(codeChallenge)).toBe(true);
+    });
+  });
+
+  describe('OAuth State and HMAC', () => {
+    it('generates state with valid prefix, hash, and HMAC', () => {
+      const { rawState, statePrefix, stateHash, hmac } = generateOAuthState();
+
+      expect(rawState).toHaveLength(43);
+      expect(statePrefix).toHaveLength(16);
+      expect(rawState.startsWith(statePrefix)).toBe(true);
+      expect(isValidPrefix(statePrefix)).toBe(true);
+      expect(stateHash).toHaveLength(64);
+      expect(hmac).toHaveLength(64);
+    });
+
+    it('verifies valid state HMAC', () => {
+      const { rawState, hmac } = generateOAuthState();
+      expect(verifyOAuthStateHmac(rawState, hmac)).toBe(true);
+    });
+
+    it('rejects tampered state or HMAC', () => {
+      const { rawState, hmac } = generateOAuthState();
+      expect(verifyOAuthStateHmac(rawState + 'x', hmac)).toBe(false);
+      expect(verifyOAuthStateHmac(rawState, hmac.slice(0, -2) + '00')).toBe(false);
+      expect(verifyOAuthStateHmac(rawState, 'invalid-length-hmac')).toBe(false);
+    });
+  });
+
+  describe('Prefix Validation', () => {
+    it('validates 16-character base64url prefixes correctly', () => {
+      expect(isValidPrefix('abcdefghijklmnop')).toBe(true);
+      expect(isValidPrefix('ABC_123-xyz98765')).toBe(true);
+      expect(isValidPrefix('short')).toBe(false);
+      expect(isValidPrefix('waytoolongprefixexceeding16chars')).toBe(false);
+      expect(isValidPrefix('special!@#$%^&*(')).toBe(false);
     });
   });
 });

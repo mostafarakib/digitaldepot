@@ -39,8 +39,35 @@ export const envSchema = z
     EMAIL_PROVIDER: z.enum(['console', 'resend']).default('console'),
     EMAIL_FROM: z.string().default('DigitalDepot <noreply@digitaldepot.com>'),
     RESEND_API_KEY: z.string().optional(),
+    GOOGLE_CLIENT_ID: z.string().default('dev-google-client-id'),
+    GOOGLE_CLIENT_SECRET: z.string().default('dev-google-client-secret'),
+    GOOGLE_CALLBACK_URL: z
+      .string()
+      .url()
+      .default('http://localhost:3000/api/auth/oauth/google/callback'),
+    OAUTH_ENCRYPTION_SECRET: z
+      .string()
+      .regex(
+        /^[0-9a-fA-F]{64}$/,
+        'OAUTH_ENCRYPTION_SECRET must be exactly 64 hexadecimal characters (32 decoded bytes)',
+      )
+      .default('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'),
+    OAUTH_STATE_SECRET: z
+      .string()
+      .min(32, 'OAUTH_STATE_SECRET must be at least 32 characters')
+      .default('dev-oauth-state-secret-minimum-32-characters-long!'),
   })
   .superRefine((data, ctx) => {
+    // Exact 32 decoded bytes validation for AES-256-GCM
+    const decodedKey = Buffer.from(data.OAUTH_ENCRYPTION_SECRET, 'hex');
+    if (decodedKey.length !== 32) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'OAUTH_ENCRYPTION_SECRET must decode to exactly 32 bytes',
+        path: ['OAUTH_ENCRYPTION_SECRET'],
+      });
+    }
+
     if (data.NODE_ENV === 'production') {
       if (data.JWT_ACCESS_SECRET === 'dev-jwt-access-secret-minimum-32-characters-long') {
         ctx.addIssue({
@@ -84,6 +111,60 @@ export const envSchema = z
           message:
             'In production, EMAIL_FROM must be a valid sender address (e.g. "Name <email@domain.com>" or "email@domain.com")',
           path: ['EMAIL_FROM'],
+        });
+      }
+
+      // In production, Google OAuth configuration must be valid
+      if (
+        data.GOOGLE_CLIENT_ID === 'dev-google-client-id' ||
+        !data.GOOGLE_CLIENT_ID.endsWith('.apps.googleusercontent.com')
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'In production, GOOGLE_CLIENT_ID must be a valid Google OAuth Client ID ending with .apps.googleusercontent.com',
+          path: ['GOOGLE_CLIENT_ID'],
+        });
+      }
+
+      if (
+        data.GOOGLE_CLIENT_SECRET === 'dev-google-client-secret' ||
+        data.GOOGLE_CLIENT_SECRET.trim().length === 0
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'In production, GOOGLE_CLIENT_SECRET must be configured with a production secret',
+          path: ['GOOGLE_CLIENT_SECRET'],
+        });
+      }
+
+      if (!data.GOOGLE_CALLBACK_URL.startsWith('https://')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'In production, GOOGLE_CALLBACK_URL must use https://',
+          path: ['GOOGLE_CALLBACK_URL'],
+        });
+      }
+
+      if (
+        data.OAUTH_ENCRYPTION_SECRET ===
+        '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'In production, OAUTH_ENCRYPTION_SECRET must be set to a secure unique 64-hex key',
+          path: ['OAUTH_ENCRYPTION_SECRET'],
+        });
+      }
+
+      if (data.OAUTH_STATE_SECRET === 'dev-oauth-state-secret-minimum-32-characters-long!') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'In production, OAUTH_STATE_SECRET must be set to a secure unique 32-character key',
+          path: ['OAUTH_STATE_SECRET'],
         });
       }
     }

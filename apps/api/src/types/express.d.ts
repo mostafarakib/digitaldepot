@@ -7,6 +7,8 @@ export interface AuthenticatedUser {
   profile: CustomerProfile | null;
   sessionId: string;
   emailVerified: boolean;
+  hasPassword: boolean;
+  reauthenticatedAt: Date | null;
 }
 
 declare global {

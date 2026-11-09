@@ -45,6 +45,8 @@ describe('Rate Limiter Middleware', () => {
           profile: null,
           sessionId: 'session-123',
           emailVerified: false,
+          hasPassword: true,
+          reauthenticatedAt: new Date(),
         } satisfies AuthenticatedUser;
       }
       next();

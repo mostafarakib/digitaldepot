@@ -1,5 +1,6 @@
 import type { CookieOptions, Response } from 'express';
 import { env } from '../config/env.js';
+import { isValidPrefix } from './crypto.js';
 
 export const COOKIE_NAMES = {
   ACCESS_TOKEN: 'dd_access_token',
@@ -68,4 +69,50 @@ export function clearAuthCookies(res: Response): void {
 
   res.cookie(COOKIE_NAMES.ACCESS_TOKEN, '', clearOptions);
   res.cookie(COOKIE_NAMES.REFRESH_TOKEN, '', clearOptions);
+}
+
+export function setOAuthStateCookie(res: Response, statePrefix: string, hmac: string): void {
+  if (!isValidPrefix(statePrefix)) {
+    throw new Error('Invalid state prefix for OAuth state cookie');
+  }
+  res.cookie(`dd_oauth_${statePrefix}`, hmac, {
+    ...getBaseCookieOptions(),
+    httpOnly: true,
+    maxAge: 10 * 60 * 1000, // 10 minutes
+  });
+}
+
+export function clearOAuthStateCookie(res: Response, statePrefix: string): void {
+  if (!isValidPrefix(statePrefix)) {
+    return;
+  }
+  res.cookie(`dd_oauth_${statePrefix}`, '', {
+    ...getBaseCookieOptions(),
+    httpOnly: true,
+    maxAge: 0,
+    expires: new Date(0),
+  });
+}
+
+export function setOAuthLinkCookie(res: Response, challengePrefix: string, rawToken: string): void {
+  if (!isValidPrefix(challengePrefix)) {
+    throw new Error('Invalid challenge prefix for OAuth link challenge cookie');
+  }
+  res.cookie(`dd_link_${challengePrefix}`, rawToken, {
+    ...getBaseCookieOptions(),
+    httpOnly: true,
+    maxAge: 10 * 60 * 1000, // 10 minutes
+  });
+}
+
+export function clearOAuthLinkCookie(res: Response, challengePrefix: string): void {
+  if (!isValidPrefix(challengePrefix)) {
+    return;
+  }
+  res.cookie(`dd_link_${challengePrefix}`, '', {
+    ...getBaseCookieOptions(),
+    httpOnly: true,
+    maxAge: 0,
+    expires: new Date(0),
+  });
 }

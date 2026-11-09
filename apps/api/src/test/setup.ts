@@ -46,7 +46,7 @@ export async function cleanDatabase(): Promise<void> {
     throw new Error('Refusing to truncate non-test database!');
   }
   await testPrisma.$executeRawUnsafe(`
-    TRUNCATE TABLE "Address", "SecurityToken", "RefreshToken", "Session", "CustomerProfile", "User" CASCADE;
+    TRUNCATE TABLE "OAuthLinkChallenge", "OAuthTransaction", "OAuthAccount", "Address", "SecurityToken", "RefreshToken", "Session", "CustomerProfile", "User" CASCADE;
   `);
 }
 

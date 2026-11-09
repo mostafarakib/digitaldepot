@@ -1,6 +1,7 @@
 import { Router } from 'express';
-import { authenticate, requireRole } from '../../middleware/auth.js';
+import { authenticate, requireRole, requireRecentAuth } from '../../middleware/auth.js';
 import { csrfProtection } from '../../middleware/csrf.js';
+import { oauthLinkLimiter, oauthUnlinkLimiter } from '../../middleware/rate-limiter.js';
 import { accountController } from './account.controller.js';
 
 const router = Router();
@@ -57,5 +58,33 @@ router.patch('/addresses/:id', csrfProtection, (req, res, next) => {
 router.delete('/addresses/:id', csrfProtection, (req, res, next) => {
   accountController.deleteAddress(req, res).catch(next);
 });
+
+// OAuth Provider Management Endpoints
+// GET /api/v1/account/oauth
+router.get('/oauth', (req, res, next) => {
+  accountController.getOAuthProviders(req, res).catch(next);
+});
+
+// POST /api/v1/account/oauth/google/link
+router.post(
+  '/oauth/google/link',
+  csrfProtection,
+  requireRecentAuth,
+  oauthLinkLimiter,
+  (req, res, next) => {
+    accountController.linkGoogleOAuth(req, res).catch(next);
+  },
+);
+
+// DELETE /api/v1/account/oauth/google
+router.delete(
+  '/oauth/google',
+  csrfProtection,
+  requireRecentAuth,
+  oauthUnlinkLimiter,
+  (req, res, next) => {
+    accountController.unlinkGoogleOAuth(req, res).catch(next);
+  },
+);
 
 export default router;

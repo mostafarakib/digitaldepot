@@ -5,8 +5,10 @@ import {
   updateProfileSchema,
   createAddressSchema,
   updateAddressSchema,
+  oauthLinkInitiateSchema,
 } from './account.schemas.js';
 import { UnauthorizedError } from '../../lib/errors.js';
+import { setOAuthStateCookie } from '../../lib/cookies.js';
 
 export class AccountController {
   /**
@@ -178,6 +180,71 @@ export class AccountController {
         message: 'Default address updated successfully',
         address,
       },
+    });
+  }
+
+  /**
+   * GET /api/v1/account/oauth
+   * Lists linked OAuth providers for the authenticated customer.
+   */
+  async getOAuthProviders(req: Request, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+    }
+
+    const data = await accountService.getOAuthProviders(req.user.id);
+
+    res.status(200).json({
+      success: true,
+      data,
+    });
+  }
+
+  /**
+   * POST /api/v1/account/oauth/google/link
+   * Initiates Google OAuth account linking for the authenticated customer.
+   */
+  async linkGoogleOAuth(req: Request, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+    }
+
+    const body = oauthLinkInitiateSchema.parse(req.body || {});
+    const outcome = await accountService.initiateGoogleOAuthLink(
+      req.user.id,
+      req.user.sessionId,
+      body.returnUrl,
+    );
+
+    setOAuthStateCookie(res, outcome.statePrefix, outcome.hmac);
+
+    if (req.headers.accept?.includes('application/json') || req.query['format'] === 'json') {
+      res.status(200).json({
+        success: true,
+        data: {
+          authUrl: outcome.authUrl,
+        },
+      });
+      return;
+    }
+
+    res.redirect(outcome.authUrl);
+  }
+
+  /**
+   * DELETE /api/v1/account/oauth/google
+   * Unlinks Google OAuth provider from customer account.
+   */
+  async unlinkGoogleOAuth(req: Request, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+    }
+
+    const result = await accountService.unlinkGoogleOAuth(req.user.id, req.user.sessionId);
+
+    res.status(200).json({
+      success: true,
+      data: result,
     });
   }
 }

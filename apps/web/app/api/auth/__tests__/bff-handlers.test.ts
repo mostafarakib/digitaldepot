@@ -15,6 +15,15 @@ import { POST as revokeOtherSessionsHandler } from '../sessions/revoke-others/ro
 import { DELETE as revokeSessionHandler } from '../sessions/[id]/route';
 import { GET as csrfHandler } from '../csrf/route';
 import { GET as meHandler } from '../me/route';
+import { POST as confirmPasswordHandler } from '../confirm-password/route';
+import { POST as setPasswordHandler } from '../set-password/route';
+import { POST as oauthReauthHandler } from '../oauth/google/reauth/route';
+import { GET as oauthInitiateHandler } from '../oauth/google/route';
+import { POST as confirmLinkHandler } from '../oauth/google/confirm-link/route';
+import { GET as oauthCallbackHandler } from '../oauth/google/callback/route';
+import { GET as oauthProvidersHandler } from '../../account/oauth/route';
+import { POST as linkGoogleHandler } from '../../account/oauth/google/link/route';
+import { DELETE as unlinkGoogleHandler } from '../../account/oauth/google/route';
 
 describe('BFF Utilities & Route Handlers', () => {
   const originalFetch = global.fetch;
@@ -436,6 +445,251 @@ describe('BFF Utilities & Route Handlers', () => {
       expect(deleteSessionRes.status).toBe(200);
       expect(forwardedUrl).toContain('/api/v1/auth/sessions/sess_123');
       expect(forwardedMethod).toBe('DELETE');
+    });
+
+    it('enforces Origin validation and forwards Phase 3E-2 requests to Express API', async () => {
+      let forwardedUrl = '';
+      let forwardedMethod = '';
+      let forwardedBody: unknown = null;
+
+      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        forwardedUrl = url;
+        forwardedMethod = init?.method ?? 'GET';
+        forwardedBody = init?.body ? JSON.parse(init.body as string) : null;
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({
+            'content-type': 'application/json',
+            'set-cookie': 'dd_test=cookie_val; Path=/',
+          }),
+          json: async () => ({
+            success: true,
+            data: { status: 'LINKED', returnUrl: '/account/security' },
+          }),
+        } as unknown as Response;
+      });
+
+      // 1. POST confirm-password rejects without Origin
+      const confirmNoOrigin = new NextRequest('http://localhost:3000/api/auth/confirm-password', {
+        method: 'POST',
+        body: JSON.stringify({ password: 'pw' }),
+      });
+      const confirmNoOriginRes = await confirmPasswordHandler(confirmNoOrigin);
+      expect(confirmNoOriginRes.status).toBe(403);
+
+      // 2. POST confirm-password succeeds with Origin
+      const confirmWithOrigin = new NextRequest('http://localhost:3000/api/auth/confirm-password', {
+        method: 'POST',
+        headers: { origin: 'http://localhost:3000' },
+        body: JSON.stringify({ password: 'ValidPassword123!' }),
+      });
+      const confirmRes = await confirmPasswordHandler(confirmWithOrigin);
+      expect(confirmRes.status).toBe(200);
+      expect(forwardedUrl).toContain('/api/v1/auth/confirm-password');
+
+      // 3. POST set-password succeeds with Origin
+      const setPassReq = new NextRequest('http://localhost:3000/api/auth/set-password', {
+        method: 'POST',
+        headers: { origin: 'http://localhost:3000' },
+        body: JSON.stringify({ password: 'NewPassword123!' }),
+      });
+      const setPassRes = await setPasswordHandler(setPassReq);
+      expect(setPassRes.status).toBe(200);
+      expect(forwardedUrl).toContain('/api/v1/auth/set-password');
+
+      // 4. POST oauth/google/reauth succeeds with Origin
+      const reauthReq = new NextRequest('http://localhost:3000/api/auth/oauth/google/reauth', {
+        method: 'POST',
+        headers: { origin: 'http://localhost:3000' },
+        body: JSON.stringify({ returnUrl: '/account/security' }),
+      });
+      const reauthRes = await oauthReauthHandler(reauthReq);
+      expect(reauthRes.status).toBe(200);
+      expect(forwardedUrl).toContain('/api/v1/auth/oauth/google/reauth');
+
+      // 5. GET account/oauth succeeds without Origin
+      const oauthListReq = new NextRequest('http://localhost:3000/api/account/oauth', {
+        method: 'GET',
+      });
+      const oauthListRes = await oauthProvidersHandler(oauthListReq);
+      expect(oauthListRes.status).toBe(200);
+      expect(forwardedUrl).toContain('/api/v1/account/oauth');
+      expect(forwardedMethod).toBe('GET');
+
+      // 6. POST account/oauth/google/link succeeds with Origin
+      const linkReq = new NextRequest('http://localhost:3000/api/account/oauth/google/link', {
+        method: 'POST',
+        headers: { origin: 'http://localhost:3000' },
+        body: JSON.stringify({ returnUrl: '/account/security' }),
+      });
+      const linkRes = await linkGoogleHandler(linkReq);
+      expect(linkRes.status).toBe(200);
+      expect(forwardedUrl).toContain('/api/v1/account/oauth/google/link');
+
+      // 7. DELETE account/oauth/google succeeds with Origin
+      const unlinkReq = new NextRequest('http://localhost:3000/api/account/oauth/google', {
+        method: 'DELETE',
+        headers: { origin: 'http://localhost:3000' },
+      });
+      const unlinkRes = await unlinkGoogleHandler(unlinkReq);
+      expect(unlinkRes.status).toBe(200);
+      expect(forwardedUrl).toContain('/api/v1/account/oauth/google');
+      expect(forwardedMethod).toBe('DELETE');
+
+      // 8. GET oauth/google/callback forwards to backend and redirects browser
+      const callbackReq = new NextRequest(
+        'http://localhost:3000/api/auth/oauth/google/callback?code=mock_code&state=mock_state_1234567890',
+        { method: 'GET' },
+      );
+      const callbackRes = await oauthCallbackHandler(callbackReq);
+      expect(callbackRes.status).toBe(307);
+      expect(callbackRes.headers.get('location')).toContain('/account/security?linked=true');
+      expect(forwardedUrl).toContain('/api/v1/auth/oauth/google/callback');
+      expect(forwardedMethod).toBe('POST');
+
+      // 9. GET oauth/google returns JSON with authUrl when format=json
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        forwardedUrl = url;
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({
+            'content-type': 'application/json',
+            'set-cookie': 'dd_oauth_prefix123=hmacval; Path=/; HttpOnly; SameSite=Lax',
+          }),
+          json: async () => ({
+            success: true,
+            data: {
+              authUrl: 'https://accounts.google.com/o/oauth2/v2/auth?client_id=123',
+              statePrefix: 'prefix123',
+            },
+          }),
+        } as unknown as Response;
+      });
+
+      const initiateJsonReq = new NextRequest(
+        'http://localhost:3000/api/auth/oauth/google?format=json&returnUrl=/account',
+        { method: 'GET' },
+      );
+      const initiateJsonRes = await oauthInitiateHandler(initiateJsonReq);
+      expect(initiateJsonRes.status).toBe(200);
+      expect(forwardedUrl).toContain('/api/v1/auth/oauth/google?format=json&returnUrl=%2Faccount');
+      const initiateData = await initiateJsonRes.json();
+      expect(initiateData.data.authUrl).toContain('accounts.google.com');
+      const initiateCookies = initiateJsonRes.headers.getSetCookie();
+      expect(initiateCookies.some((c) => c.includes('dd_oauth_prefix123'))).toBe(true);
+
+      // 10. GET oauth/google redirects to authUrl on direct browser navigation
+      const initiateDirectReq = new NextRequest(
+        'http://localhost:3000/api/auth/oauth/google?returnUrl=/profile',
+        {
+          method: 'GET',
+          headers: { accept: 'text/html,application/xhtml+xml' },
+        },
+      );
+      const initiateDirectRes = await oauthInitiateHandler(initiateDirectReq);
+      expect(initiateDirectRes.status).toBe(302);
+      expect(initiateDirectRes.headers.get('location')).toContain('accounts.google.com');
+
+      // 11. POST oauth/google/confirm-link enforces Origin and forwards to backend
+      const confirmLinkNoOrigin = new NextRequest(
+        'http://localhost:3000/api/auth/oauth/google/confirm-link',
+        {
+          method: 'POST',
+          body: JSON.stringify({ challengePrefix: 'abcdefghijklmnop', password: 'password123' }),
+        },
+      );
+      const confirmLinkNoOriginRes = await confirmLinkHandler(confirmLinkNoOrigin);
+      expect(confirmLinkNoOriginRes.status).toBe(403);
+
+      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        forwardedUrl = url;
+        forwardedMethod = init?.method ?? 'GET';
+        forwardedBody = init?.body ? JSON.parse(init.body as string) : null;
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({
+            'content-type': 'application/json',
+            'set-cookie': 'dd_access_token=token123; Path=/',
+            'x-csrf-token': 'new-csrf-token',
+          }),
+          json: async () => ({
+            success: true,
+            data: { status: 'AUTHENTICATED', user: { id: 'u1', email: 'test@example.com' } },
+          }),
+        } as unknown as Response;
+      });
+
+      const confirmLinkValidReq = new NextRequest(
+        'http://localhost:3000/api/auth/oauth/google/confirm-link',
+        {
+          method: 'POST',
+          headers: {
+            origin: 'http://localhost:3000',
+            cookie: 'dd_link_abcdefghijklmnop=raw_link_token',
+          },
+          body: JSON.stringify({
+            challengePrefix: 'abcdefghijklmnop',
+            password: 'ValidPassword123!',
+          }),
+        },
+      );
+      const confirmLinkValidRes = await confirmLinkHandler(confirmLinkValidReq);
+      expect(confirmLinkValidRes.status).toBe(200);
+      expect(forwardedUrl).toContain('/api/v1/auth/oauth/google/confirm-link');
+      expect(forwardedMethod).toBe('POST');
+      expect(forwardedBody).toEqual({
+        challengePrefix: 'abcdefghijklmnop',
+        password: 'ValidPassword123!',
+      });
+      const confirmCookies = confirmLinkValidRes.headers.getSetCookie();
+      expect(confirmCookies.some((c) => c.includes('dd_access_token=token123'))).toBe(true);
+      expect(confirmLinkValidRes.headers.get('x-csrf-token')).toBe('new-csrf-token');
+
+      // 12. GET oauth/google/callback routing: unauthenticated failure goes to /login?error=...
+      global.fetch = vi.fn().mockImplementation(async () => {
+        return {
+          ok: false,
+          status: 409,
+          headers: new Headers({
+            'content-type': 'application/json',
+            'set-cookie': 'dd_oauth_mock=; Path=/; Max-Age=0',
+          }),
+          json: async () => ({
+            success: false,
+            error: {
+              code: 'OAUTH_PROVIDER_IDENTITY_CONFLICT',
+              message: 'Already linked',
+            },
+          }),
+        } as unknown as Response;
+      });
+
+      const unauthCallbackReq = new NextRequest(
+        'http://localhost:3000/api/auth/oauth/google/callback?code=code_val&state=state_val_12345678',
+        { method: 'GET' },
+      );
+      const unauthCallbackRes = await oauthCallbackHandler(unauthCallbackReq);
+      expect(unauthCallbackRes.status).toBe(307);
+      expect(unauthCallbackRes.headers.get('location')).toBe(
+        'http://localhost:3000/login?error=OAUTH_PROVIDER_IDENTITY_CONFLICT',
+      );
+
+      // 13. GET oauth/google/callback routing: authenticated failure goes to /account/security?error=...
+      const authCallbackReq = new NextRequest(
+        'http://localhost:3000/api/auth/oauth/google/callback?code=code_val&state=state_val_12345678',
+        {
+          method: 'GET',
+          headers: { cookie: 'dd_access_token=valid_access_token' },
+        },
+      );
+      const authCallbackRes = await oauthCallbackHandler(authCallbackReq);
+      expect(authCallbackRes.status).toBe(307);
+      expect(authCallbackRes.headers.get('location')).toBe(
+        'http://localhost:3000/account/security?error=OAUTH_PROVIDER_IDENTITY_CONFLICT',
+      );
     });
   });
 });

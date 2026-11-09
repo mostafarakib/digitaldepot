@@ -1,6 +1,11 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { authController } from './auth.controller.js';
-import { authenticate, optionalAuthenticate } from '../../middleware/auth.js';
+import {
+  authenticate,
+  optionalAuthenticate,
+  requireRole,
+  requireRecentAuth,
+} from '../../middleware/auth.js';
 import { csrfProtection } from '../../middleware/csrf.js';
 import {
   loginIpLimiter,
@@ -13,6 +18,9 @@ import {
   verifyEmailIpLimiter,
   resendVerificationIpLimiter,
   resendVerificationTargetedLimiter,
+  confirmPasswordLimiter,
+  setPasswordLimiter,
+  oauthReauthLimiter,
 } from '../../middleware/rate-limiter.js';
 import { verifyAccessToken } from '../../lib/crypto.js';
 import { COOKIE_NAMES } from '../../lib/cookies.js';
@@ -39,6 +47,8 @@ async function optionalAuth(req: Request, _res: Response, next: NextFunction): P
         role: 'CUSTOMER',
         profile: null,
         emailVerified: false,
+        hasPassword: true,
+        reauthenticatedAt: null,
       } satisfies AuthenticatedUser;
     }
   } catch {
@@ -121,6 +131,43 @@ router.post(
   },
 );
 
+// POST /api/v1/auth/confirm-password
+router.post(
+  '/confirm-password',
+  authenticate,
+  requireRole('CUSTOMER'),
+  csrfProtection,
+  confirmPasswordLimiter,
+  (req, res, next) => {
+    authController.confirmPassword(req, res).catch(next);
+  },
+);
+
+// POST /api/v1/auth/set-password
+router.post(
+  '/set-password',
+  authenticate,
+  requireRole('CUSTOMER'),
+  csrfProtection,
+  requireRecentAuth,
+  setPasswordLimiter,
+  (req, res, next) => {
+    authController.setPassword(req, res).catch(next);
+  },
+);
+
+// POST /api/v1/auth/oauth/google/reauth
+router.post(
+  '/oauth/google/reauth',
+  authenticate,
+  requireRole('CUSTOMER'),
+  csrfProtection,
+  oauthReauthLimiter,
+  (req, res, next) => {
+    authController.googleOAuthReauthInitiate(req, res).catch(next);
+  },
+);
+
 // GET /api/v1/auth/sessions
 router.get('/sessions', authenticate, (req, res, next) => {
   authController.listSessions(req, res).catch(next);
@@ -135,5 +182,25 @@ router.delete('/sessions/:id', authenticate, csrfProtection, (req, res, next) =>
 router.post('/sessions/revoke-others', authenticate, csrfProtection, (req, res, next) => {
   authController.revokeOtherSessions(req, res).catch(next);
 });
+
+// GET /api/v1/auth/oauth/google
+router.get('/oauth/google', loginIpLimiter, (req, res, next) => {
+  authController.googleOAuthInitiate(req, res).catch(next);
+});
+
+// POST /api/v1/auth/oauth/google/callback
+router.post('/oauth/google/callback', loginIpLimiter, (req, res, next) => {
+  authController.googleOAuthCallback(req, res).catch(next);
+});
+
+// POST /api/v1/auth/oauth/google/confirm-link
+router.post(
+  '/oauth/google/confirm-link',
+  csrfProtection,
+  loginTargetedLimiter,
+  (req, res, next) => {
+    authController.googleOAuthConfirmLink(req, res).catch(next);
+  },
+);
 
 export default router;

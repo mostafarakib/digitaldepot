@@ -77,6 +77,50 @@ describe('apiClient and auth coordination', () => {
       expect(mutationHeaders.get('x-csrf-token')).toBe('bootstrapped-csrf-123');
     });
 
+    it('bootstraps CSRF token from /api/auth/csrf even when document.cookie already contains dd_csrf', async () => {
+      // Simulate post-OAuth redirect state: cookie exists in document.cookie, but in-memory token is empty
+      setInMemoryCsrfToken(null);
+      (global as unknown as { document: unknown }).document = {
+        cookie: 'dd_csrf=cookie-csrf-from-redirect.hmac',
+      };
+
+      try {
+        const mockFetch = vi.fn().mockImplementation(async (url: string) => {
+          if (url === '/api/auth/csrf') {
+            const headers = new Headers();
+            headers.set('x-csrf-token', 'header-csrf-token-abc');
+            return {
+              ok: true,
+              status: 200,
+              headers,
+              json: async () => ({ success: true, data: { initialized: true } }),
+            } as unknown as Response;
+          }
+
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers(),
+            json: async () => ({ success: true, data: { posted: true } }),
+          } as unknown as Response;
+        });
+        global.fetch = mockFetch;
+
+        const result = await apiClient<{ posted: boolean }>('/api/test-mutation', {
+          method: 'POST',
+        });
+
+        expect(result).toEqual({ posted: true });
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(mockFetch.mock.calls[0][0]).toBe('/api/auth/csrf');
+        expect(getInMemoryCsrfToken()).toBe('header-csrf-token-abc');
+        const mutationHeaders = mockFetch.mock.calls[1][1].headers as Headers;
+        expect(mutationHeaders.get('x-csrf-token')).toBe('header-csrf-token-abc');
+      } finally {
+        delete (global as Record<string, unknown>).document;
+      }
+    });
+
     it('rotates in-memory CSRF token whenever a response includes x-csrf-token', async () => {
       setInMemoryCsrfToken('old-csrf-token');
 

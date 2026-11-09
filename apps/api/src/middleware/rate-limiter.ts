@@ -196,3 +196,114 @@ export const resendVerificationTargetedLimiter = rateLimit({
     });
   },
 });
+
+export const confirmPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: shouldSkip,
+  keyGenerator: (req: Request): string => {
+    const userId = req.user?.id || 'anonymous';
+    const clientIp = ipKeyGenerator(req.ip || req.socket.remoteAddress || '127.0.0.1');
+    return `${clientIp}_${userId}`;
+  },
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      error: {
+        code: 'TOO_MANY_REQUESTS',
+        message:
+          'Too many password confirmation attempts. Please wait 15 minutes before trying again.',
+      },
+    });
+  },
+});
+
+export const setPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: shouldSkip,
+  keyGenerator: (req: Request): string => {
+    const userId = req.user?.id || 'anonymous';
+    const clientIp = ipKeyGenerator(req.ip || req.socket.remoteAddress || '127.0.0.1');
+    return `${clientIp}_${userId}`;
+  },
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      error: {
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Too many password setup attempts. Please wait 15 minutes before trying again.',
+      },
+    });
+  },
+});
+
+export const oauthReauthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: shouldSkip,
+  keyGenerator: (req: Request): string => {
+    const userId = req.user?.id || 'anonymous';
+    const clientIp = ipKeyGenerator(req.ip || req.socket.remoteAddress || '127.0.0.1');
+    return `${clientIp}_${userId}`;
+  },
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      error: {
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Too many re-authentication attempts. Please try again after 15 minutes.',
+      },
+    });
+  },
+});
+
+export const oauthLinkLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: shouldSkip,
+  keyGenerator: (req: Request): string => {
+    const userId = req.user?.id || 'anonymous';
+    const clientIp = ipKeyGenerator(req.ip || req.socket.remoteAddress || '127.0.0.1');
+    return `${clientIp}_${userId}`;
+  },
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      error: {
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Too many account link attempts. Please try again after 15 minutes.',
+      },
+    });
+  },
+});
+
+export const oauthUnlinkLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: shouldSkip,
+  keyGenerator: (req: Request): string => {
+    const userId = req.user?.id || 'anonymous';
+    const clientIp = ipKeyGenerator(req.ip || req.socket.remoteAddress || '127.0.0.1');
+    return `${clientIp}_${userId}`;
+  },
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      error: {
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Too many account unlink attempts. Please try again after 15 minutes.',
+      },
+    });
+  },
+});

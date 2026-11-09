@@ -12,6 +12,11 @@ describe('Environment Configuration Validation (envSchema)', () => {
     EMAIL_PROVIDER: 'resend',
     RESEND_API_KEY: 're_production_key_12345',
     EMAIL_FROM: 'DigitalDepot <noreply@digitaldepot.com>',
+    GOOGLE_CLIENT_ID: '1234567890-prod.apps.googleusercontent.com',
+    GOOGLE_CLIENT_SECRET: 'prod-google-client-secret-secure',
+    GOOGLE_CALLBACK_URL: 'https://digitaldepot.com/api/auth/oauth/google/callback',
+    OAUTH_ENCRYPTION_SECRET: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+    OAUTH_STATE_SECRET: 'a-very-long-production-oauth-state-secret-at-least-32-chars',
   };
 
   describe('Sender Address Validator (isValidSenderAddress)', () => {
@@ -144,6 +149,73 @@ describe('Environment Configuration Validation (envSchema)', () => {
       if (testResult.success) {
         expect(testResult.data.EMAIL_PROVIDER).toBe('console');
       }
+    });
+  });
+
+  describe('OAuth Configuration Rules', () => {
+    it('rejects OAUTH_ENCRYPTION_SECRET that is not exactly 64 hex characters (32 decoded bytes)', () => {
+      const tooLong = envSchema.safeParse({
+        ...baseValidProdEnv,
+        OAUTH_ENCRYPTION_SECRET:
+          '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef00',
+      });
+      expect(tooLong.success).toBe(false);
+
+      const invalidChars = envSchema.safeParse({
+        ...baseValidProdEnv,
+        OAUTH_ENCRYPTION_SECRET: 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz',
+      });
+      expect(invalidChars.success).toBe(false);
+
+      const invalidLength = envSchema.safeParse({
+        ...baseValidProdEnv,
+        OAUTH_ENCRYPTION_SECRET: '0123456789abcdef',
+      });
+      expect(invalidLength.success).toBe(false);
+    });
+
+    it('rejects default or invalid OAuth configuration in production', () => {
+      // Default google client id
+      const res1 = envSchema.safeParse({
+        ...baseValidProdEnv,
+        GOOGLE_CLIENT_ID: 'dev-google-client-id',
+      });
+      expect(res1.success).toBe(false);
+
+      // Google client id without apps.googleusercontent.com suffix
+      const res2 = envSchema.safeParse({
+        ...baseValidProdEnv,
+        GOOGLE_CLIENT_ID: 'invalid-client-id.example.com',
+      });
+      expect(res2.success).toBe(false);
+
+      // Default google client secret
+      const res3 = envSchema.safeParse({
+        ...baseValidProdEnv,
+        GOOGLE_CLIENT_SECRET: 'dev-google-client-secret',
+      });
+      expect(res3.success).toBe(false);
+
+      // Non-https callback url
+      const res4 = envSchema.safeParse({
+        ...baseValidProdEnv,
+        GOOGLE_CALLBACK_URL: 'http://digitaldepot.com/api/auth/oauth/google/callback',
+      });
+      expect(res4.success).toBe(false);
+
+      // Default oauth encryption secret in prod
+      const res5 = envSchema.safeParse({
+        ...baseValidProdEnv,
+        OAUTH_ENCRYPTION_SECRET: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+      });
+      expect(res5.success).toBe(false);
+
+      // Default oauth state secret in prod
+      const res6 = envSchema.safeParse({
+        ...baseValidProdEnv,
+        OAUTH_STATE_SECRET: 'dev-oauth-state-secret-minimum-32-characters-long!',
+      });
+      expect(res6.success).toBe(false);
     });
   });
 });

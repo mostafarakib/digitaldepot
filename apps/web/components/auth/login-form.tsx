@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Eye, EyeOff, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { GoogleAuthButton } from './google-auth-button';
 
 export function LoginForm() {
   const t = useTranslations('auth.login');
@@ -27,6 +28,30 @@ export function LoginForm() {
   const registeredNotice = searchParams.get('registered') === 'true';
   const resetNotice = searchParams.get('reset') === 'true';
   const rawReturnUrl = searchParams.get('returnUrl');
+  const oauthErrorParam = searchParams.get('error');
+
+  const getOAuthErrorMessage = (code: string | null): string | null => {
+    if (!code) return null;
+    switch (code) {
+      case 'ACCOUNT_SUSPENDED':
+        return t('accountSuspendedError');
+      case 'OAUTH_PROVIDER_IDENTITY_CONFLICT':
+        return t('oauthIdentityConflictError');
+      case 'EMAIL_MISMATCH':
+        return t('emailMismatchError');
+      case 'INVALID_OAUTH_STATE':
+      case 'MISSING_OAUTH_PARAMS':
+        return t('oauthStateError');
+      case 'LINK_CHALLENGE_EXPIRED':
+        return t('linkChallengeExpiredError');
+      case 'BACKEND_CONNECTION_ERROR':
+        return t('genericError');
+      default:
+        return t('oauthCallbackFailedError');
+    }
+  };
+
+  const oauthError = getOAuthErrorMessage(oauthErrorParam);
 
   // Sanitize returnUrl: must be relative, never protocol-relative
   const returnUrl =
@@ -100,6 +125,33 @@ export function LoginForm() {
           <p className="text-sm font-medium">{serverError}</p>
         </div>
       )}
+
+      {oauthError && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-destructive"
+        >
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <p className="text-sm font-medium">{oauthError}</p>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <GoogleAuthButton
+          mode="signin"
+          returnUrl={returnUrl}
+          onError={(msg) => setServerError(msg)}
+        />
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-2 text-muted-foreground">{t('orContinueWith')}</span>
+          </div>
+        </div>
+      </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <div className="space-y-2">

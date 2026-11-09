@@ -7,6 +7,13 @@ import {
   generateOpaqueToken,
   hashToken,
   signAccessToken,
+  verifyAccessToken,
+  encryptGcm,
+  decryptGcm,
+  generatePkce,
+  generateOAuthState,
+  verifyOAuthStateHmac,
+  isValidPrefix,
 } from '../../lib/crypto.js';
 import {
   BadRequestError,
@@ -19,6 +26,14 @@ import { logger } from '../../lib/logger.js';
 import { parseUserAgent, maskIp, type ParsedUserAgent } from '../../lib/user-agent.js';
 import { securityTokenService } from './security-token.service.js';
 import { emailService } from '../email/email.service.js';
+import { googleOAuthService } from './google-oauth.service.js';
+import { env } from '../../config/env.js';
+import {
+  OAUTH_PROVIDER_GOOGLE,
+  isAuthenticationFresh,
+  DEFAULT_OAUTH_RETURN_URL,
+} from './auth.constants.js';
+import { validateSafeReturnUrl } from './auth.schemas.js';
 import type {
   RegisterInput,
   LoginInput,
@@ -28,7 +43,60 @@ import type {
   VerifyEmailInput,
   ResendVerificationInput,
 } from './auth.schemas.js';
-import type { Prisma, Session, User, CustomerProfile } from '../../generated/client/client.js';
+import {
+  Prisma,
+  type Session,
+  type User,
+  type CustomerProfile,
+  type OAuthAction,
+} from '../../generated/client/client.js';
+
+function isPrismaP2002Error(error: unknown): error is Prisma.PrismaClientKnownRequestError {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    return true;
+  }
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code: unknown }).code === 'P2002'
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function isP2002Target(
+  error: Prisma.PrismaClientKnownRequestError | { code: 'P2002'; meta?: Record<string, unknown> },
+  fields: string[],
+  constraints: string[],
+): boolean {
+  const meta = error.meta;
+  if (!meta) return false;
+
+  const target = meta['target'];
+  if (Array.isArray(target)) {
+    if (fields.length > 0 && fields.every((f) => target.includes(f))) {
+      return true;
+    }
+  } else if (typeof target === 'string') {
+    if (fields.some((f) => target.includes(f)) || constraints.some((c) => target.includes(c))) {
+      return true;
+    }
+  }
+
+  const constraint = meta['constraint'];
+  if (typeof constraint === 'string') {
+    if (
+      constraints.some((c) => constraint.includes(c)) ||
+      fields.some((f) => constraint.includes(f))
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 export interface ExecuteRefreshTokenRotationParams {
   tokenHash: string;
@@ -1036,6 +1104,1034 @@ export class AuthService {
     }
 
     return { message: genericMessage };
+  }
+
+  private async createSessionAndTokens(
+    userId: string,
+    ip: string,
+    userAgent?: string,
+  ): Promise<{
+    session: Session;
+    accessToken: string;
+    refreshToken: string;
+  }> {
+    const now = new Date();
+    const sessionExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const refreshExpiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const rawRefreshToken = generateOpaqueToken();
+    const tokenHash = hashToken(rawRefreshToken);
+    const familyId = crypto.randomUUID();
+
+    const session = await prisma.$transaction(async (tx) => {
+      const s = await tx.session.create({
+        data: {
+          userId,
+          userAgent: userAgent ?? null,
+          ipAddress: ip,
+          expiresAt: sessionExpiresAt,
+          reauthenticatedAt: now,
+          lastUsedAt: now,
+        },
+      });
+
+      await tx.refreshToken.create({
+        data: {
+          sessionId: s.id,
+          familyId,
+          tokenHash,
+          expiresAt: refreshExpiresAt,
+        },
+      });
+
+      return s;
+    });
+
+    const accessToken = await signAccessToken({
+      sub: userId,
+      sid: session.id,
+    });
+
+    return {
+      session,
+      accessToken,
+      refreshToken: rawRefreshToken,
+    };
+  }
+
+  /**
+   * Confirms password for recent-authentication step-up on an active session.
+   * Performs Argon2id verification outside the transaction, then verifies hash consistency
+   * and session validity under User -> Session locks.
+   */
+  async confirmPassword(
+    userId: string,
+    sessionId: string,
+    password: string,
+  ): Promise<{ message: string }> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, passwordHash: true, status: true },
+    });
+
+    if (!user || user.status !== 'ACTIVE') {
+      await verifyDummyPassword(password);
+      throw new UnauthorizedError('INVALID_CREDENTIALS', 'Incorrect password');
+    }
+
+    if (user.passwordHash === null) {
+      await verifyDummyPassword(password);
+      throw new BadRequestError('NO_PASSWORD_SET', 'Account does not have a password configured');
+    }
+
+    const verifiedHash = user.passwordHash;
+    const isValid = await verifyPassword(password, verifiedHash);
+    if (!isValid) {
+      throw new UnauthorizedError('INVALID_CREDENTIALS', 'Incorrect password');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      const txNow = new Date();
+
+      // Step 1: Lock User
+      const users: Array<{ id: string; passwordHash: string | null; status: string }> =
+        await tx.$queryRaw`
+        SELECT id, "passwordHash", status FROM "User" WHERE id = ${userId} FOR UPDATE
+      `;
+      const lockedUser = users[0];
+      if (!lockedUser || lockedUser.status !== 'ACTIVE') {
+        throw new UnauthorizedError('INVALID_CREDENTIALS', 'Incorrect password');
+      }
+
+      if (lockedUser.passwordHash !== verifiedHash) {
+        throw new UnauthorizedError(
+          'INVALID_CREDENTIALS',
+          'Password was changed concurrently. Please try again.',
+        );
+      }
+
+      // Step 2: Lock Session
+      const sessions: Array<{ id: string; revokedAt: Date | null; expiresAt: Date }> =
+        await tx.$queryRaw`
+        SELECT id, "revokedAt", "expiresAt" FROM "Session"
+        WHERE id = ${sessionId} AND "userId" = ${userId}
+        FOR UPDATE
+      `;
+      const session = sessions[0];
+      if (!session || session.revokedAt !== null || session.expiresAt <= txNow) {
+        throw new UnauthorizedError(
+          'SESSION_REVOKED_OR_EXPIRED',
+          'Session has been revoked or expired',
+        );
+      }
+
+      // Step 3: Update reauthenticatedAt
+      await tx.session.update({
+        where: { id: session.id },
+        data: { reauthenticatedAt: txNow },
+      });
+    });
+
+    return { message: 'Password confirmed successfully' };
+  }
+
+  /**
+   * Sets initial password for OAuth-only accounts.
+   * Computes Argon2id hash outside the transaction, then locks User and Session to verify
+   * that password is not already set and recent-authentication is still fresh.
+   */
+  async setPassword(
+    userId: string,
+    sessionId: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    const passwordHash = await hashPassword(newPassword);
+
+    await prisma.$transaction(async (tx) => {
+      const txNow = new Date();
+
+      // Step 1: Lock User
+      const users: Array<{ id: string; passwordHash: string | null; status: string }> =
+        await tx.$queryRaw`
+        SELECT id, "passwordHash", status FROM "User" WHERE id = ${userId} FOR UPDATE
+      `;
+      const user = users[0];
+      if (!user || user.status !== 'ACTIVE') {
+        throw new NotFoundError('USER_NOT_FOUND', 'User account not found');
+      }
+
+      if (user.passwordHash !== null) {
+        throw new BadRequestError(
+          'PASSWORD_ALREADY_SET',
+          'Account already has a password set. Use change password instead.',
+        );
+      }
+
+      // Step 2: Lock Session
+      const sessions: Array<{
+        id: string;
+        revokedAt: Date | null;
+        expiresAt: Date;
+        reauthenticatedAt: Date | null;
+      }> = await tx.$queryRaw`
+        SELECT id, "revokedAt", "expiresAt", "reauthenticatedAt" FROM "Session"
+        WHERE id = ${sessionId} AND "userId" = ${userId}
+        FOR UPDATE
+      `;
+      const session = sessions[0];
+      if (!session || session.revokedAt !== null || session.expiresAt <= txNow) {
+        throw new UnauthorizedError(
+          'SESSION_REVOKED_OR_EXPIRED',
+          'Session has been revoked or expired',
+        );
+      }
+
+      if (!isAuthenticationFresh(session.reauthenticatedAt, txNow.getTime())) {
+        throw new ForbiddenError(
+          'REAUTHENTICATION_REQUIRED',
+          'Recent authentication is required to perform this action. Please re-authenticate.',
+        );
+      }
+
+      // Step 3: Persist precomputed hash (reauthenticatedAt is NOT refreshed)
+      await tx.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      });
+    });
+
+    return { message: 'Password set successfully' };
+  }
+
+  /**
+   * Initiates dedicated Google OAuth re-authentication for active sessions.
+   * Does NOT require recent authentication.
+   */
+  async initiateGoogleOAuthReauth(
+    userId: string,
+    sessionId: string,
+    returnUrl?: string,
+  ): Promise<{
+    authUrl: string;
+    statePrefix: string;
+    hmac: string;
+  }> {
+    const linked = await prisma.oAuthAccount.findFirst({
+      where: { userId, provider: OAUTH_PROVIDER_GOOGLE },
+    });
+    if (!linked) {
+      throw new BadRequestError(
+        'OAUTH_NOT_LINKED',
+        'No linked Google account found for reauthentication',
+      );
+    }
+
+    const safeReturnUrl = validateSafeReturnUrl(returnUrl, DEFAULT_OAUTH_RETURN_URL);
+    const { rawState, statePrefix, stateHash, hmac } = generateOAuthState();
+    const nonce = generateOpaqueToken();
+    const { codeVerifier, codeChallenge } = generatePkce();
+
+    const encrypted = encryptGcm(codeVerifier, env.OAUTH_ENCRYPTION_SECRET);
+
+    await prisma.oAuthTransaction.create({
+      data: {
+        stateHash,
+        statePrefix,
+        nonce,
+        encryptedCodeVerifier: encrypted.ciphertext,
+        codeVerifierIv: encrypted.iv,
+        codeVerifierTag: encrypted.tag,
+        action: 'REAUTH',
+        userId,
+        sessionId,
+        returnUrl: safeReturnUrl,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+      },
+    });
+
+    const authUrl = googleOAuthService.getAuthorizationUrl({
+      state: rawState,
+      nonce,
+      codeChallenge,
+      prompt: 'select_account',
+    });
+
+    return {
+      authUrl,
+      statePrefix,
+      hmac,
+    };
+  }
+
+  /**
+   * Initiates Google OAuth 2.0 / OIDC flow.
+   * Generates cryptographically secure state, nonce, PKCE pair, encrypts verifier with AES-256-GCM,
+   * stores OAuthTransaction, and returns authorization URL and cookie parameters.
+   */
+  async initiateGoogleOAuth(returnUrl?: string): Promise<{
+    authUrl: string;
+    statePrefix: string;
+    hmac: string;
+  }> {
+    const safeReturnUrl = validateSafeReturnUrl(returnUrl, '/');
+
+    const { rawState, statePrefix, stateHash, hmac } = generateOAuthState();
+    const nonce = generateOpaqueToken();
+    const { codeVerifier, codeChallenge } = generatePkce();
+
+    const encrypted = encryptGcm(codeVerifier, env.OAUTH_ENCRYPTION_SECRET);
+
+    await prisma.oAuthTransaction.create({
+      data: {
+        stateHash,
+        statePrefix,
+        nonce,
+        encryptedCodeVerifier: encrypted.ciphertext,
+        codeVerifierIv: encrypted.iv,
+        codeVerifierTag: encrypted.tag,
+        action: 'SIGNIN',
+        userId: null,
+        returnUrl: safeReturnUrl,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+      },
+    });
+
+    const authUrl = googleOAuthService.getAuthorizationUrl({
+      state: rawState,
+      nonce,
+      codeChallenge,
+    });
+
+    return {
+      authUrl,
+      statePrefix,
+      hmac,
+    };
+  }
+
+  /**
+   * Handles Google OAuth callback.
+   * Validates state cookie HMAC, consumes OAuthTransaction atomically, exchanges code,
+   * verifies ID token claims, and either completes direct sign-in, registers a new user,
+   * or creates an OAuthLinkChallenge for conservative linking.
+   */
+  async handleGoogleCallback(params: {
+    code: string;
+    rawState: string;
+    cookieHmac?: string;
+    ip: string;
+    userAgent?: string;
+    callerToken?: string;
+  }): Promise<
+    | {
+        status: 'AUTHENTICATED';
+        user: User & { profile: CustomerProfile | null };
+        session: Session;
+        accessToken: string;
+        refreshToken: string;
+        returnUrl: string;
+        statePrefix: string;
+      }
+    | {
+        status: 'LINK_REQUIRED';
+        challengePrefix: string;
+        rawChallengeToken: string;
+        returnUrl: string;
+        statePrefix: string;
+      }
+    | {
+        status: 'LINKED';
+        returnUrl: string;
+        statePrefix: string;
+      }
+    | {
+        status: 'REAUTHENTICATED';
+        returnUrl: string;
+        statePrefix: string;
+      }
+  > {
+    const statePrefix = params.rawState.slice(0, 16);
+    if (!isValidPrefix(statePrefix)) {
+      throw new BadRequestError('INVALID_OAUTH_STATE', 'Invalid OAuth state prefix');
+    }
+
+    if (!params.cookieHmac || !verifyOAuthStateHmac(params.rawState, params.cookieHmac)) {
+      throw new UnauthorizedError('INVALID_OAUTH_STATE', 'OAuth state verification failed');
+    }
+
+    const stateHash = hashToken(params.rawState);
+    const now = new Date();
+
+    const updatedTxs: Array<{
+      id: string;
+      action: OAuthAction;
+      userId: string | null;
+      sessionId: string | null;
+      returnUrl: string;
+      nonce: string;
+      encryptedCodeVerifier: string;
+      codeVerifierIv: string;
+      codeVerifierTag: string;
+    }> = await prisma.$queryRaw`
+      UPDATE "OAuthTransaction"
+      SET "consumedAt" = ${now}
+      WHERE "stateHash" = ${stateHash}
+        AND "consumedAt" IS NULL
+        AND "expiresAt" > ${now}
+      RETURNING id, action, "userId", "sessionId", "returnUrl", nonce, "encryptedCodeVerifier", "codeVerifierIv", "codeVerifierTag"
+    `;
+
+    const oauthTx = updatedTxs[0];
+    if (!oauthTx) {
+      throw new BadRequestError(
+        'OAUTH_TRANSACTION_EXPIRED',
+        'OAuth transaction has already been used or expired',
+      );
+    }
+
+    const codeVerifier = decryptGcm(
+      {
+        ciphertext: oauthTx.encryptedCodeVerifier,
+        iv: oauthTx.codeVerifierIv,
+        tag: oauthTx.codeVerifierTag,
+      },
+      env.OAUTH_ENCRYPTION_SECRET,
+    );
+
+    const { idToken } = await googleOAuthService.exchangeCode(params.code, codeVerifier);
+    const googleUser = await googleOAuthService.verifyIdToken(idToken, oauthTx.nonce);
+    const normalizedEmail = googleUser.email.trim().toLowerCase();
+
+    // Dedicated REAUTH action branch
+    if (oauthTx.action === 'REAUTH') {
+      if (!oauthTx.userId || !oauthTx.sessionId) {
+        throw new BadRequestError('INVALID_OAUTH_STATE', 'Corrupted transaction payload');
+      }
+
+      if (!params.callerToken) {
+        throw new UnauthorizedError(
+          'AUTHENTICATION_REQUIRED',
+          'Authentication required for reauthentication',
+        );
+      }
+
+      const payload = await verifyAccessToken(params.callerToken);
+      if (payload.sub !== oauthTx.userId || payload.sid !== oauthTx.sessionId) {
+        throw new ForbiddenError(
+          'OAUTH_REAUTH_IDENTITY_MISMATCH',
+          'Session or user identity does not match re-authentication transaction',
+        );
+      }
+
+      await prisma.$transaction(async (tx) => {
+        const txNow = new Date();
+
+        // Level 1: Lock User
+        const users: Array<{ id: string; status: string }> = await tx.$queryRaw`
+          SELECT id, status FROM "User" WHERE id = ${oauthTx.userId} FOR UPDATE
+        `;
+        const user = users[0];
+        if (!user || user.status !== 'ACTIVE') {
+          throw new ForbiddenError('ACCOUNT_SUSPENDED', 'Account is suspended or missing');
+        }
+
+        // Level 2: Lock Session
+        const sessions: Array<{ id: string; revokedAt: Date | null; expiresAt: Date }> =
+          await tx.$queryRaw`
+          SELECT id, "revokedAt", "expiresAt" FROM "Session"
+          WHERE id = ${oauthTx.sessionId} AND "userId" = ${oauthTx.userId}
+          FOR UPDATE
+        `;
+        const session = sessions[0];
+        if (!session || session.revokedAt !== null || session.expiresAt <= txNow) {
+          throw new UnauthorizedError(
+            'SESSION_REVOKED_OR_EXPIRED',
+            'Session has been revoked or expired',
+          );
+        }
+
+        // Verify returned Google sub matches user's linked account
+        const linked = await tx.oAuthAccount.findFirst({
+          where: {
+            userId: user.id,
+            provider: OAUTH_PROVIDER_GOOGLE,
+            providerAccountId: googleUser.sub,
+          },
+        });
+        if (!linked) {
+          throw new ForbiddenError(
+            'OAUTH_REAUTH_IDENTITY_MISMATCH',
+            'The authenticated Google account does not match the linked identity for this user',
+          );
+        }
+
+        await tx.session.update({
+          where: { id: session.id },
+          data: { reauthenticatedAt: txNow },
+        });
+      });
+
+      return {
+        status: 'REAUTHENTICATED' as const,
+        returnUrl: oauthTx.returnUrl,
+        statePrefix,
+      };
+    }
+
+    // Dedicated LINK action branch
+    if (oauthTx.action === 'LINK') {
+      if (!oauthTx.userId || !oauthTx.sessionId) {
+        throw new BadRequestError('INVALID_OAUTH_STATE', 'Corrupted transaction payload');
+      }
+
+      if (!params.callerToken) {
+        throw new UnauthorizedError(
+          'AUTHENTICATION_REQUIRED',
+          'Authentication required for linking',
+        );
+      }
+
+      const payload = await verifyAccessToken(params.callerToken);
+      if (payload.sub !== oauthTx.userId || payload.sid !== oauthTx.sessionId) {
+        throw new ForbiddenError(
+          'OAUTH_LINK_IDENTITY_MISMATCH',
+          'Calling session does not match the initiating link transaction',
+        );
+      }
+
+      await prisma.$transaction(async (tx) => {
+        const txNow = new Date();
+
+        // Level 1: Lock User
+        const users: Array<{ id: string; email: string; status: string }> = await tx.$queryRaw`
+          SELECT id, email, status FROM "User" WHERE id = ${oauthTx.userId} FOR UPDATE
+        `;
+        const lockedUser = users[0];
+        if (!lockedUser || lockedUser.status !== 'ACTIVE') {
+          throw new ForbiddenError('ACCOUNT_SUSPENDED', 'Account is suspended or missing');
+        }
+
+        // Email Equality Check (HTTP 400 EMAIL_MISMATCH)
+        if (lockedUser.email.trim().toLowerCase() !== normalizedEmail) {
+          throw new BadRequestError(
+            'EMAIL_MISMATCH',
+            'Google account email does not match your DigitalDepot email',
+          );
+        }
+
+        // Level 2: Lock exact initiating Session
+        const sessions: Array<{
+          id: string;
+          revokedAt: Date | null;
+          expiresAt: Date;
+          reauthenticatedAt: Date | null;
+        }> = await tx.$queryRaw`
+          SELECT id, "revokedAt", "expiresAt", "reauthenticatedAt" FROM "Session"
+          WHERE id = ${oauthTx.sessionId} AND "userId" = ${lockedUser.id}
+          FOR UPDATE
+        `;
+        const session = sessions[0];
+        if (!session || session.revokedAt !== null || session.expiresAt <= txNow) {
+          throw new UnauthorizedError(
+            'SESSION_REVOKED_OR_EXPIRED',
+            'Session has been revoked or expired',
+          );
+        }
+
+        // Recheck recent auth freshness under lock:
+        if (!isAuthenticationFresh(session.reauthenticatedAt, txNow.getTime())) {
+          throw new ForbiddenError(
+            'REAUTHENTICATION_REQUIRED',
+            'Recent authentication expired during the linking process. Please re-authenticate.',
+          );
+        }
+
+        // Duplicate checks
+        const existingUserGoogle = await tx.oAuthAccount.findFirst({
+          where: { userId: lockedUser.id, provider: OAUTH_PROVIDER_GOOGLE },
+        });
+        if (existingUserGoogle) {
+          throw new ConflictError(
+            'OAUTH_ALREADY_LINKED',
+            'Your account is already linked to a Google identity',
+          );
+        }
+
+        const existingGoogleSub = await tx.oAuthAccount.findUnique({
+          where: {
+            unique_provider_account: {
+              provider: OAUTH_PROVIDER_GOOGLE,
+              providerAccountId: googleUser.sub,
+            },
+          },
+        });
+        if (existingGoogleSub) {
+          throw new ConflictError(
+            'OAUTH_PROVIDER_IDENTITY_CONFLICT',
+            'This Google account is already linked to another DigitalDepot account',
+          );
+        }
+
+        // Safe insertion under lock
+        try {
+          await tx.oAuthAccount.create({
+            data: {
+              userId: lockedUser.id,
+              provider: OAUTH_PROVIDER_GOOGLE,
+              providerAccountId: googleUser.sub,
+            },
+          });
+        } catch (error) {
+          if (isPrismaP2002Error(error)) {
+            throw new ConflictError(
+              'OAUTH_PROVIDER_IDENTITY_CONFLICT',
+              'This Google account is already linked to another account',
+            );
+          }
+          throw error;
+        }
+      });
+
+      return {
+        status: 'LINKED' as const,
+        returnUrl: oauthTx.returnUrl,
+        statePrefix,
+      };
+    }
+
+    if (oauthTx.action !== 'SIGNIN') {
+      throw new BadRequestError('INVALID_OAUTH_STATE', 'Unsupported OAuth transaction action');
+    }
+
+    // Check if this provider account is already linked
+    const existingOAuth = await prisma.oAuthAccount.findUnique({
+      where: {
+        unique_provider_account: {
+          provider: 'GOOGLE',
+          providerAccountId: googleUser.sub,
+        },
+      },
+      include: {
+        user: {
+          include: {
+            profile: true,
+          },
+        },
+      },
+    });
+
+    if (existingOAuth) {
+      if (existingOAuth.user.status === 'SUSPENDED') {
+        throw new ForbiddenError(
+          'ACCOUNT_SUSPENDED',
+          'Your account has been suspended. Please contact customer support.',
+        );
+      }
+
+      const sessionTokens = await this.createSessionAndTokens(
+        existingOAuth.user.id,
+        params.ip,
+        params.userAgent,
+      );
+
+      return {
+        status: 'AUTHENTICATED',
+        user: existingOAuth.user,
+        session: sessionTokens.session,
+        accessToken: sessionTokens.accessToken,
+        refreshToken: sessionTokens.refreshToken,
+        returnUrl: oauthTx.returnUrl,
+        statePrefix,
+      };
+    }
+
+    // Provider account not yet linked. Check if an account exists with this email.
+    let conflictOrRegisterOutcome:
+      | {
+          status: 'LINK_REQUIRED';
+          challengePrefix: string;
+          rawChallengeToken: string;
+          returnUrl: string;
+        }
+      | {
+          status: 'REGISTERED';
+          user: User & { profile: CustomerProfile | null };
+          returnUrl: string;
+        };
+
+    try {
+      conflictOrRegisterOutcome = await prisma.$transaction(async (tx) => {
+        const lockedUsers: Array<User & { profile: CustomerProfile | null }> = await tx.$queryRaw`
+          SELECT * FROM "User" WHERE email = ${normalizedEmail} FOR UPDATE
+        `;
+        const existingUserWithEmail = lockedUsers[0];
+
+        if (existingUserWithEmail) {
+          // Existing user with same email
+          const existingGoogleForUser = await tx.oAuthAccount.findFirst({
+            where: { userId: existingUserWithEmail.id, provider: 'GOOGLE' },
+          });
+
+          if (existingGoogleForUser && existingGoogleForUser.providerAccountId !== googleUser.sub) {
+            throw new ConflictError(
+              'OAUTH_PROVIDER_IDENTITY_CONFLICT',
+              'This account is already linked to a different Google account',
+            );
+          }
+
+          if (existingUserWithEmail.status === 'SUSPENDED') {
+            throw new ForbiddenError(
+              'ACCOUNT_SUSPENDED',
+              'Your account has been suspended. Please contact customer support.',
+            );
+          }
+
+          // Conservative linking: require password confirmation via link challenge
+          const rawChallengeToken = generateOpaqueToken();
+          const challengePrefix = rawChallengeToken.slice(0, 16);
+          const challengeHash = hashToken(rawChallengeToken);
+          const challengeExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+          // Invalidate any previous unconsumed link challenges for this user and provider
+          await tx.oAuthLinkChallenge.updateMany({
+            where: {
+              userId: existingUserWithEmail.id,
+              provider: 'GOOGLE',
+              consumedAt: null,
+            },
+            data: {
+              consumedAt: new Date(),
+            },
+          });
+
+          await tx.oAuthLinkChallenge.create({
+            data: {
+              userId: existingUserWithEmail.id,
+              provider: 'GOOGLE',
+              providerAccountId: googleUser.sub,
+              email: normalizedEmail,
+              challengeHash,
+              challengePrefix,
+              expiresAt: challengeExpiresAt,
+            },
+          });
+
+          return {
+            status: 'LINK_REQUIRED' as const,
+            challengePrefix,
+            rawChallengeToken,
+            returnUrl: oauthTx.returnUrl,
+          };
+        }
+
+        // New user registration
+        let firstName = 'Customer';
+        let lastName = '';
+        if (googleUser.name && googleUser.name.trim()) {
+          const parts = googleUser.name.trim().split(/\s+/);
+          firstName = parts[0]!;
+          lastName = parts.slice(1).join(' ');
+        }
+
+        let avatarUrl: string | null = null;
+        if (googleUser.picture) {
+          try {
+            const parsed = new URL(googleUser.picture);
+            if (parsed.protocol === 'https:') {
+              avatarUrl = googleUser.picture;
+            }
+          } catch {
+            avatarUrl = null;
+          }
+        }
+
+        const newUser = await tx.user.create({
+          data: {
+            email: normalizedEmail,
+            passwordHash: null,
+            role: 'CUSTOMER',
+            status: 'ACTIVE',
+            emailVerified: true,
+            emailVerifiedAt: new Date(),
+            profile: {
+              create: {
+                firstName,
+                lastName,
+                avatarUrl,
+              },
+            },
+          },
+          include: {
+            profile: true,
+          },
+        });
+
+        await tx.oAuthAccount.create({
+          data: {
+            userId: newUser.id,
+            provider: 'GOOGLE',
+            providerAccountId: googleUser.sub,
+          },
+        });
+
+        return {
+          status: 'REGISTERED' as const,
+          user: newUser,
+          returnUrl: oauthTx.returnUrl,
+        };
+      });
+    } catch (error) {
+      if (isPrismaP2002Error(error)) {
+        if (isP2002Target(error, ['email'], ['User_email_key', 'User_email_unique', 'email'])) {
+          throw new ConflictError(
+            'EMAIL_ALREADY_EXISTS',
+            'An account with this email address already exists',
+          );
+        }
+        if (
+          isP2002Target(
+            error,
+            ['provider', 'providerAccountId'],
+            ['unique_provider_account', 'OAuthAccount_provider_providerAccountId_key'],
+          )
+        ) {
+          throw new ConflictError(
+            'OAUTH_PROVIDER_IDENTITY_CONFLICT',
+            'This Google account is already linked to another account',
+          );
+        }
+      }
+      throw error;
+    }
+
+    if (conflictOrRegisterOutcome.status === 'LINK_REQUIRED') {
+      return {
+        status: 'LINK_REQUIRED',
+        challengePrefix: conflictOrRegisterOutcome.challengePrefix,
+        rawChallengeToken: conflictOrRegisterOutcome.rawChallengeToken,
+        returnUrl: conflictOrRegisterOutcome.returnUrl,
+        statePrefix,
+      };
+    }
+
+    const sessionTokens = await this.createSessionAndTokens(
+      conflictOrRegisterOutcome.user.id,
+      params.ip,
+      params.userAgent,
+    );
+
+    return {
+      status: 'AUTHENTICATED',
+      user: conflictOrRegisterOutcome.user,
+      session: sessionTokens.session,
+      accessToken: sessionTokens.accessToken,
+      refreshToken: sessionTokens.refreshToken,
+      returnUrl: conflictOrRegisterOutcome.returnUrl,
+      statePrefix,
+    };
+  }
+
+  /**
+   * Confirms account linking for existing password-enabled accounts.
+   * Atomically verifies password under User-first lock and tracks failed attempts (up to 5).
+   */
+  async confirmGoogleLink(
+    challengePrefix: string,
+    rawToken: string,
+    password: string,
+    ip: string,
+    userAgent?: string,
+  ): Promise<
+    | {
+        status: 'SUCCESS';
+        user: User & { profile: CustomerProfile | null };
+        session: Session;
+        accessToken: string;
+        refreshToken: string;
+      }
+    | { status: 'INVALID_CREDENTIALS'; remainingAttempts: number }
+    | { status: 'MAX_ATTEMPTS_EXCEEDED' }
+    | { status: 'CHALLENGE_EXPIRED_OR_NOT_FOUND' }
+    | { status: 'ACCOUNT_SUSPENDED' }
+    | { status: 'IDENTITY_CONFLICT' }
+    | { status: 'NO_PASSWORD' }
+    | { status: 'USER_NOT_FOUND' }
+  > {
+    const challengeHash = hashToken(rawToken);
+
+    let outcome;
+    try {
+      outcome = await prisma.$transaction(async (tx) => {
+        const challenge = await tx.oAuthLinkChallenge.findUnique({
+          where: { challengeHash },
+        });
+
+        if (!challenge || challenge.consumedAt !== null || challenge.expiresAt <= new Date()) {
+          return { status: 'CHALLENGE_EXPIRED_OR_NOT_FOUND' as const };
+        }
+
+        if (challenge.challengePrefix !== challengePrefix) {
+          return { status: 'CHALLENGE_EXPIRED_OR_NOT_FOUND' as const };
+        }
+
+        // Strict Lock Order: Lock User row FIRST
+        const users: Array<User & { profile: CustomerProfile | null }> = await tx.$queryRaw`
+          SELECT * FROM "User" WHERE id = ${challenge.userId} FOR UPDATE
+        `;
+        const user = users[0];
+
+        if (!user) {
+          return { status: 'USER_NOT_FOUND' as const };
+        }
+
+        if (user.status === 'SUSPENDED') {
+          return { status: 'ACCOUNT_SUSPENDED' as const };
+        }
+
+        if (!user.passwordHash) {
+          return { status: 'NO_PASSWORD' as const };
+        }
+
+        const isPasswordValid = await verifyPassword(password, user.passwordHash);
+
+        if (!isPasswordValid) {
+          const newFailed = challenge.failedAttempts + 1;
+          if (newFailed >= 5) {
+            await tx.oAuthLinkChallenge.update({
+              where: { id: challenge.id },
+              data: {
+                failedAttempts: newFailed,
+                consumedAt: new Date(),
+              },
+            });
+            return { status: 'MAX_ATTEMPTS_EXCEEDED' as const };
+          } else {
+            await tx.oAuthLinkChallenge.update({
+              where: { id: challenge.id },
+              data: {
+                failedAttempts: newFailed,
+              },
+            });
+            return { status: 'INVALID_CREDENTIALS' as const, remainingAttempts: 5 - newFailed };
+          }
+        }
+
+        // Password verified - atomically consume challenge
+        await tx.oAuthLinkChallenge.update({
+          where: { id: challenge.id },
+          data: {
+            consumedAt: new Date(),
+          },
+        });
+
+        // Check if another account already has this Google identity
+        const existingOAuth = await tx.oAuthAccount.findUnique({
+          where: {
+            unique_provider_account: {
+              provider: challenge.provider,
+              providerAccountId: challenge.providerAccountId,
+            },
+          },
+        });
+
+        if (existingOAuth && existingOAuth.userId !== user.id) {
+          return { status: 'IDENTITY_CONFLICT' as const };
+        }
+
+        if (!existingOAuth) {
+          await tx.oAuthAccount.create({
+            data: {
+              userId: user.id,
+              provider: challenge.provider,
+              providerAccountId: challenge.providerAccountId,
+            },
+          });
+        }
+
+        if (!user.emailVerified) {
+          await tx.user.update({
+            where: { id: user.id },
+            data: {
+              emailVerified: true,
+              emailVerifiedAt: new Date(),
+            },
+          });
+        }
+
+        const now = new Date();
+        const sessionExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+        const refreshExpiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+        const rawRefreshToken = generateOpaqueToken();
+        const tokenHash = hashToken(rawRefreshToken);
+        const familyId = crypto.randomUUID();
+
+        const session = await tx.session.create({
+          data: {
+            userId: user.id,
+            userAgent: userAgent ?? null,
+            ipAddress: ip,
+            expiresAt: sessionExpiresAt,
+            reauthenticatedAt: now,
+            lastUsedAt: now,
+          },
+        });
+
+        await tx.refreshToken.create({
+          data: {
+            sessionId: session.id,
+            familyId,
+            tokenHash,
+            expiresAt: refreshExpiresAt,
+          },
+        });
+
+        const fullUser = await tx.user.findUnique({
+          where: { id: user.id },
+          include: { profile: true },
+        });
+
+        return {
+          status: 'SUCCESS' as const,
+          user: fullUser!,
+          session,
+          refreshToken: rawRefreshToken,
+        };
+      });
+    } catch (error) {
+      if (isPrismaP2002Error(error)) {
+        if (
+          isP2002Target(
+            error,
+            ['provider', 'providerAccountId'],
+            ['unique_provider_account', 'OAuthAccount_provider_providerAccountId_key'],
+          )
+        ) {
+          throw new ConflictError(
+            'OAUTH_PROVIDER_IDENTITY_CONFLICT',
+            'This Google account is already linked to another account',
+          );
+        }
+      }
+      throw error;
+    }
+
+    if (outcome.status !== 'SUCCESS') {
+      return outcome;
+    }
+
+    const accessToken = await signAccessToken({
+      sub: outcome.user.id,
+      sid: outcome.session.id,
+    });
+
+    return {
+      status: 'SUCCESS',
+      user: outcome.user,
+      session: outcome.session,
+      accessToken,
+      refreshToken: outcome.refreshToken,
+    };
   }
 }
 

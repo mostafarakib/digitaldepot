@@ -248,3 +248,36 @@ export function buildUpdateAddressPayload(
 
   return payload;
 }
+
+export const setPasswordFormSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters long')
+      .max(128, 'Password cannot exceed 128 characters'),
+    confirmPassword: z.string().min(1, 'Please confirm your password'),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: 'Passwords do not match',
+    path: ['confirmPassword'],
+  });
+
+export type SetPasswordFormInput = z.infer<typeof setPasswordFormSchema>;
+
+export const confirmPasswordFormSchema = z.object({
+  password: z
+    .string()
+    .min(1, 'Password is required')
+    .max(128, 'Password cannot exceed 128 characters'),
+});
+
+export type ConfirmPasswordFormInput = z.infer<typeof confirmPasswordFormSchema>;
+
+export const confirmLinkFormSchema = z.object({
+  password: z
+    .string()
+    .min(1, 'Password is required')
+    .max(128, 'Password cannot exceed 128 characters'),
+});
+
+export type ConfirmLinkFormInput = z.infer<typeof confirmLinkFormSchema>;

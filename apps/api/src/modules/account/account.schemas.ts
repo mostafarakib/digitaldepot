@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isValidDivision, isValidDistrict, isDistrictInDivision } from './data/bangladesh-geo.js';
+import { safeRelativeUrlSchema } from '../auth/auth.schemas.js';
 
 export const BD_PHONE_REGEX = /^(?:01[3-9]\d{8}|\+8801[3-9]\d{8}|8801[3-9]\d{8})$/;
 
@@ -196,4 +197,19 @@ export interface AddressListOutput {
   addresses: AddressOutput[];
   total: number;
   maxQuota: number;
+}
+
+export const oauthLinkInitiateSchema = z.object({
+  returnUrl: safeRelativeUrlSchema.optional(),
+});
+
+export type OAuthLinkInitiateInput = z.infer<typeof oauthLinkInitiateSchema>;
+
+export interface OAuthProviderOutput {
+  provider: string;
+  linkedAt: Date;
+}
+
+export interface OAuthProviderListOutput {
+  providers: OAuthProviderOutput[];
 }

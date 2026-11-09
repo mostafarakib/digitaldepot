@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { verifyAccessToken } from '../lib/crypto.js';
 import { COOKIE_NAMES } from '../lib/cookies.js';
 import { ForbiddenError, UnauthorizedError } from '../lib/errors.js';
+import { isAuthenticationFresh } from '../modules/auth/auth.constants.js';
 import type { Role } from '../generated/client/client.js';
 
 export async function authenticate(
@@ -66,6 +67,8 @@ export async function authenticate(
     profile: session.user.profile,
     sessionId: session.id,
     emailVerified: session.user.emailVerified,
+    hasPassword: session.user.passwordHash !== null,
+    reauthenticatedAt: session.reauthenticatedAt,
   };
 
   next();
@@ -119,6 +122,8 @@ export async function optionalAuthenticate(
         profile: session.user.profile,
         sessionId: session.id,
         emailVerified: session.user.emailVerified,
+        hasPassword: session.user.passwordHash !== null,
+        reauthenticatedAt: session.reauthenticatedAt,
       };
     }
   } catch {
@@ -173,4 +178,23 @@ export function requireRole(allowedRole: Role) {
 
     next();
   };
+}
+
+/**
+ * Enforces recent authentication freshness (15-minute window).
+ * Required for sensitive credential and account configuration operations.
+ */
+export function requireRecentAuth(req: Request, _res: Response, next: NextFunction): void {
+  if (!req.user) {
+    throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+  }
+
+  if (!isAuthenticationFresh(req.user.reauthenticatedAt)) {
+    throw new ForbiddenError(
+      'REAUTHENTICATION_REQUIRED',
+      'Recent authentication is required to perform this action. Please re-authenticate.',
+    );
+  }
+
+  next();
 }

@@ -9,10 +9,31 @@ import {
   revokeSessionParamsSchema,
   verifyEmailSchema,
   resendVerificationSchema,
+  oauthInitiateQuerySchema,
+  oauthCallbackSchema,
+  confirmLinkSchema,
+  confirmPasswordSchema,
+  setPasswordSchema,
+  oauthReauthSchema,
 } from './auth.schemas.js';
-import { setAuthCookies, clearAuthCookies, COOKIE_NAMES } from '../../lib/cookies.js';
+import {
+  setAuthCookies,
+  clearAuthCookies,
+  setOAuthStateCookie,
+  clearOAuthStateCookie,
+  setOAuthLinkCookie,
+  clearOAuthLinkCookie,
+  COOKIE_NAMES,
+} from '../../lib/cookies.js';
 import { rotateCsrfToken } from '../../middleware/csrf.js';
-import { UnauthorizedError } from '../../lib/errors.js';
+import {
+  BadRequestError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+} from '../../lib/errors.js';
+import { isValidPrefix } from '../../lib/crypto.js';
 import { logger } from '../../lib/logger.js';
 
 export class AuthController {
@@ -21,6 +42,8 @@ export class AuthController {
    * Issues/rotates the signed double-submit CSRF token.
    */
   async getCsrf(_req: Request, res: Response): Promise<void> {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
     const csrfToken = rotateCsrfToken(res);
     res.json({
       success: true,
@@ -419,6 +442,294 @@ export class AuthController {
         message: result.message,
       },
     });
+  }
+
+  /**
+   * GET /api/v1/auth/oauth/google
+   * Initiates Google OAuth flow, issuing unique per-transaction state cookie.
+   */
+  async googleOAuthInitiate(req: Request, res: Response): Promise<void> {
+    const query = oauthInitiateQuerySchema.parse(req.query);
+    const { authUrl, statePrefix, hmac } = await authService.initiateGoogleOAuth(query.returnUrl);
+
+    setOAuthStateCookie(res, statePrefix, hmac);
+
+    if (req.headers.accept?.includes('application/json') || req.query['format'] === 'json') {
+      res.json({
+        success: true,
+        data: {
+          authUrl,
+          statePrefix,
+        },
+      });
+      return;
+    }
+
+    res.redirect(authUrl);
+  }
+
+  /**
+   * POST /api/v1/auth/oauth/google/callback
+   * Handles Google OAuth callback, verifying state cookie and claims.
+   */
+  async googleOAuthCallback(req: Request, res: Response): Promise<void> {
+    const body = oauthCallbackSchema.parse(req.body);
+    const statePrefix = body.state.slice(0, 16);
+
+    if (!isValidPrefix(statePrefix)) {
+      throw new BadRequestError('INVALID_OAUTH_STATE', 'Invalid OAuth state prefix');
+    }
+
+    const cookieHmac = req.cookies?.[`dd_oauth_${statePrefix}`];
+
+    let callerToken = req.cookies?.[COOKIE_NAMES.ACCESS_TOKEN];
+    if (!callerToken) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        callerToken = authHeader.substring(7);
+      }
+    }
+
+    try {
+      const outcome = await authService.handleGoogleCallback({
+        code: body.code,
+        rawState: body.state,
+        cookieHmac,
+        ip: req.ip ?? '127.0.0.1',
+        userAgent: req.headers['user-agent'],
+        callerToken,
+      });
+
+      clearOAuthStateCookie(res, outcome.statePrefix);
+
+      if (outcome.status === 'REAUTHENTICATED') {
+        res.json({
+          success: true,
+          data: {
+            status: 'REAUTHENTICATED',
+            returnUrl: outcome.returnUrl,
+          },
+        });
+        return;
+      }
+
+      if (outcome.status === 'LINKED') {
+        res.json({
+          success: true,
+          data: {
+            status: 'LINKED',
+            returnUrl: outcome.returnUrl,
+          },
+        });
+        return;
+      }
+
+      if (outcome.status === 'LINK_REQUIRED') {
+        setOAuthLinkCookie(res, outcome.challengePrefix, outcome.rawChallengeToken);
+        rotateCsrfToken(res);
+
+        res.json({
+          success: true,
+          data: {
+            status: 'LINK_REQUIRED',
+            challengePrefix: outcome.challengePrefix,
+            returnUrl: outcome.returnUrl,
+          },
+        });
+        return;
+      }
+
+      setAuthCookies(res, {
+        accessToken: outcome.accessToken,
+        refreshToken: outcome.refreshToken,
+      });
+      rotateCsrfToken(res);
+
+      res.json({
+        success: true,
+        data: {
+          status: 'AUTHENTICATED',
+          user: {
+            id: outcome.user.id,
+            email: outcome.user.email,
+            role: outcome.user.role,
+            emailVerified: outcome.user.emailVerified,
+            profile: outcome.user.profile,
+          },
+          returnUrl: outcome.returnUrl,
+        },
+      });
+    } catch (error) {
+      clearOAuthStateCookie(res, statePrefix);
+      throw error;
+    }
+  }
+
+  /**
+   * POST /api/v1/auth/oauth/google/confirm-link
+   * Verifies password for existing account and links Google identity.
+   */
+  async googleOAuthConfirmLink(req: Request, res: Response): Promise<void> {
+    const body = confirmLinkSchema.parse(req.body);
+    const challengePrefix = body.challengePrefix;
+
+    const rawToken = req.cookies?.[`dd_link_${challengePrefix}`];
+    if (!rawToken || typeof rawToken !== 'string') {
+      throw new UnauthorizedError(
+        'INVALID_LINK_CHALLENGE',
+        'Link challenge cookie missing or invalid',
+      );
+    }
+
+    const outcome = await authService.confirmGoogleLink(
+      challengePrefix,
+      rawToken,
+      body.password,
+      req.ip ?? '127.0.0.1',
+      req.headers['user-agent'],
+    );
+
+    if (outcome.status === 'CHALLENGE_EXPIRED_OR_NOT_FOUND') {
+      clearOAuthLinkCookie(res, challengePrefix);
+      throw new BadRequestError(
+        'LINK_CHALLENGE_EXPIRED',
+        'Link challenge has expired or is invalid',
+      );
+    }
+
+    if (outcome.status === 'USER_NOT_FOUND') {
+      clearOAuthLinkCookie(res, challengePrefix);
+      throw new NotFoundError('USER_NOT_FOUND', 'User account not found');
+    }
+
+    if (outcome.status === 'ACCOUNT_SUSPENDED') {
+      clearOAuthLinkCookie(res, challengePrefix);
+      throw new ForbiddenError(
+        'ACCOUNT_SUSPENDED',
+        'Your account has been suspended. Please contact customer support.',
+      );
+    }
+
+    if (outcome.status === 'IDENTITY_CONFLICT') {
+      clearOAuthLinkCookie(res, challengePrefix);
+      throw new ConflictError(
+        'OAUTH_PROVIDER_IDENTITY_CONFLICT',
+        'This Google account is already linked to another user',
+      );
+    }
+
+    if (outcome.status === 'NO_PASSWORD') {
+      clearOAuthLinkCookie(res, challengePrefix);
+      throw new BadRequestError('NO_PASSWORD_SET', 'Account does not have a password configured');
+    }
+
+    if (outcome.status === 'MAX_ATTEMPTS_EXCEEDED') {
+      clearOAuthLinkCookie(res, challengePrefix);
+      throw new BadRequestError(
+        'MAX_ATTEMPTS_EXCEEDED',
+        'Too many failed password attempts. Link challenge has been invalidated. Please sign in again.',
+      );
+    }
+
+    if (outcome.status === 'INVALID_CREDENTIALS') {
+      // Retain cookie for attempts 1-4
+      throw new UnauthorizedError(
+        'INVALID_CREDENTIALS',
+        `Invalid password. ${outcome.remainingAttempts} attempts remaining.`,
+      );
+    }
+
+    clearOAuthLinkCookie(res, challengePrefix);
+    setAuthCookies(res, {
+      accessToken: outcome.accessToken,
+      refreshToken: outcome.refreshToken,
+    });
+    rotateCsrfToken(res);
+
+    res.json({
+      success: true,
+      data: {
+        status: 'AUTHENTICATED',
+        user: {
+          id: outcome.user.id,
+          email: outcome.user.email,
+          role: outcome.user.role,
+          emailVerified: outcome.user.emailVerified,
+          profile: outcome.user.profile,
+        },
+      },
+    });
+  }
+
+  /**
+   * POST /api/v1/auth/confirm-password
+   * Confirms current password to establish recent-authentication freshness.
+   */
+  async confirmPassword(req: Request, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+    }
+
+    const body = confirmPasswordSchema.parse(req.body);
+    const outcome = await authService.confirmPassword(
+      req.user.id,
+      req.user.sessionId,
+      body.password,
+    );
+
+    res.json({
+      success: true,
+      data: outcome,
+    });
+  }
+
+  /**
+   * POST /api/v1/auth/set-password
+   * Sets initial password for OAuth-only accounts.
+   */
+  async setPassword(req: Request, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+    }
+
+    const body = setPasswordSchema.parse(req.body);
+    const outcome = await authService.setPassword(req.user.id, req.user.sessionId, body.password);
+
+    res.json({
+      success: true,
+      data: outcome,
+    });
+  }
+
+  /**
+   * POST /api/v1/auth/oauth/google/reauth
+   * Initiates dedicated Google OAuth re-authentication for active sessions.
+   */
+  async googleOAuthReauthInitiate(req: Request, res: Response): Promise<void> {
+    if (!req.user) {
+      throw new UnauthorizedError('AUTHENTICATION_REQUIRED', 'Authentication required');
+    }
+
+    const body = oauthReauthSchema.parse(req.body || {});
+    const outcome = await authService.initiateGoogleOAuthReauth(
+      req.user.id,
+      req.user.sessionId,
+      body.returnUrl,
+    );
+
+    setOAuthStateCookie(res, outcome.statePrefix, outcome.hmac);
+
+    if (req.headers.accept?.includes('application/json') || req.query['format'] === 'json') {
+      res.json({
+        success: true,
+        data: {
+          authUrl: outcome.authUrl,
+        },
+      });
+      return;
+    }
+
+    res.redirect(outcome.authUrl);
   }
 }
 

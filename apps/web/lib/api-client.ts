@@ -93,13 +93,9 @@ async function executeBootstrap(options?: {
   forceRefresh?: boolean;
   failedToken?: string | null;
 }): Promise<string> {
-  // Under-lock check 1: Normal bootstrap check if another tab populated cookie
-  if (!options?.forceRefresh) {
-    const existingCookie = getCsrfTokenFromCookie();
-    if (existingCookie) {
-      currentCsrfToken = existingCookie;
-      return currentCsrfToken;
-    }
+  // Under-lock check 1: Normal bootstrap check if another request populated in-memory token
+  if (!options?.forceRefresh && currentCsrfToken) {
+    return currentCsrfToken;
   }
 
   // Under-lock check 2: Forced recovery check if another tab already rotated the cookie
@@ -186,16 +182,9 @@ export async function ensureCsrfToken(options?: {
   const isForced = options?.forceRefresh === true;
   const failedToken = options?.failedToken ?? null;
 
-  // 1. Fast path for normal requests: adopt valid cookie if present
-  if (!isForced) {
-    const cookieToken = getCsrfTokenFromCookie();
-    if (cookieToken) {
-      currentCsrfToken = cookieToken;
-      return currentCsrfToken;
-    }
-    if (currentCsrfToken) {
-      return currentCsrfToken;
-    }
+  // 1. Fast path for normal requests: return in-memory token if present
+  if (!isForced && currentCsrfToken) {
+    return currentCsrfToken;
   }
 
   // 2. Fast path for forced recovery: check if another tab/request already installed a newer cookie
@@ -216,11 +205,6 @@ export async function ensureCsrfToken(options?: {
     }
 
     if (!isForced) {
-      const cookie = getCsrfTokenFromCookie();
-      if (cookie) {
-        currentCsrfToken = cookie;
-        return currentCsrfToken;
-      }
       if (currentCsrfToken) {
         return currentCsrfToken;
       }

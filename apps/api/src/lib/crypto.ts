@@ -98,3 +98,107 @@ export async function verifyAccessToken(token: string): Promise<AccessTokenPaylo
     sid: payload['sid'] as string,
   };
 }
+
+export interface EncryptedPayload {
+  ciphertext: string;
+  iv: string;
+  tag: string;
+}
+
+/**
+ * Validates that an OAuth or challenge prefix matches the required 16-character base64url pattern.
+ */
+export function isValidPrefix(prefix: string): boolean {
+  return /^[A-Za-z0-9_-]{16}$/.test(prefix);
+}
+
+/**
+ * Encrypts a plaintext string using AES-256-GCM.
+ * Key must be a 64-character hex string representing a 32-byte key.
+ */
+export function encryptGcm(plaintext: string, secretHex: string): EncryptedPayload {
+  const key = Buffer.from(secretHex, 'hex');
+  if (key.length !== 32) {
+    throw new Error('Encryption secret must be exactly 32 bytes (64 hex characters)');
+  }
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  let ciphertext = cipher.update(plaintext, 'utf8', 'hex');
+  ciphertext += cipher.final('hex');
+  const tag = cipher.getAuthTag().toString('hex');
+  return {
+    ciphertext,
+    iv: iv.toString('hex'),
+    tag,
+  };
+}
+
+/**
+ * Decrypts an AES-256-GCM encrypted payload.
+ */
+export function decryptGcm(encrypted: EncryptedPayload, secretHex: string): string {
+  const key = Buffer.from(secretHex, 'hex');
+  if (key.length !== 32) {
+    throw new Error('Encryption secret must be exactly 32 bytes (64 hex characters)');
+  }
+  const iv = Buffer.from(encrypted.iv, 'hex');
+  const tag = Buffer.from(encrypted.tag, 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAuthTag(tag);
+  let plaintext = decipher.update(encrypted.ciphertext, 'hex', 'utf8');
+  plaintext += decipher.final('utf8');
+  return plaintext;
+}
+
+/**
+ * Generates an RFC 7636 PKCE code verifier and S256 code challenge.
+ */
+export function generatePkce(): { codeVerifier: string; codeChallenge: string } {
+  const codeVerifier = crypto.randomBytes(32).toString('base64url');
+  const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+  return { codeVerifier, codeChallenge };
+}
+
+/**
+ * Signs an OAuth state string using HMAC-SHA256 with OAUTH_STATE_SECRET.
+ */
+export function signOAuthState(rawState: string): string {
+  return crypto.createHmac('sha256', env.OAUTH_STATE_SECRET).update(rawState).digest('hex');
+}
+
+/**
+ * Generates an OAuth state string, 16-char prefix, hash, and HMAC signature.
+ */
+export function generateOAuthState(): {
+  rawState: string;
+  statePrefix: string;
+  stateHash: string;
+  hmac: string;
+} {
+  const rawState = crypto.randomBytes(32).toString('base64url');
+  const statePrefix = rawState.slice(0, 16);
+  const stateHash = hashToken(rawState);
+  const hmac = signOAuthState(rawState);
+  return { rawState, statePrefix, stateHash, hmac };
+}
+
+/**
+ * Verifies an OAuth state HMAC signature in constant time.
+ */
+export function verifyOAuthStateHmac(rawState: string, hmac: string): boolean {
+  try {
+    const expectedHmac = crypto
+      .createHmac('sha256', env.OAUTH_STATE_SECRET)
+      .update(rawState)
+      .digest('hex');
+
+    const expectedBuf = Buffer.from(expectedHmac, 'hex');
+    const actualBuf = Buffer.from(hmac, 'hex');
+    if (expectedBuf.length !== actualBuf.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(expectedBuf, actualBuf);
+  } catch {
+    return false;
+  }
+}

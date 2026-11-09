@@ -32,6 +32,24 @@ describe('Authentication API Integration Tests', () => {
     };
   }
 
+  describe('GET /api/v1/auth/csrf', () => {
+    it('returns CSRF token, sets dd_csrf cookie, and sets no-cache bootstrap headers', async () => {
+      const res = await request(app).get('/api/v1/auth/csrf');
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(typeof res.body.data.csrfToken).toBe('string');
+      expect(res.headers['x-csrf-token']).toBe(res.body.data.csrfToken);
+
+      const cookies = extractCookies(res);
+      const csrfCookie = cookies.find((c) => c.startsWith(`${COOKIE_NAMES.CSRF_TOKEN}=`));
+      expect(csrfCookie).toBeDefined();
+
+      expect(res.headers['cache-control']).toBe('no-store, no-cache, must-revalidate');
+      expect(res.headers['pragma']).toBe('no-cache');
+    });
+  });
+
   describe('POST /api/v1/auth/register', () => {
     it('successfully registers a customer without auto-logging in', async () => {
       const csrf = getCsrfHeaders();

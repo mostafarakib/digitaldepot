@@ -14,6 +14,7 @@ export interface AuthenticatedUser {
   role: Role;
   emailVerified: boolean;
   profile: CustomerProfile | null;
+  hasPassword: boolean;
 }
 
 export interface ApiSuccessResponse<T> {
@@ -152,4 +153,35 @@ export interface UpdateAddressPayload {
   postalCode?: string | null;
   label?: string | null;
   isDefault?: boolean;
+}
+
+export interface OAuthProviderItem {
+  provider: 'GOOGLE';
+  linkedAt: string;
+}
+
+export interface OAuthProvidersResponse {
+  providers: OAuthProviderItem[];
+}
+
+export interface ConfirmPasswordPayload {
+  password: string;
+}
+
+export interface SetPasswordPayload {
+  password: string;
+}
+
+export interface OAuthLinkInitiatePayload {
+  returnUrl?: string;
+}
+
+export interface ConfirmLinkPayload {
+  challengePrefix: string;
+  password: string;
+}
+
+export interface OAuthInitiateResponse {
+  authUrl: string;
+  statePrefix: string;
 }
