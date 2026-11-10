@@ -1,14 +1,16 @@
 import React from 'react';
-import { AdminPlaceholderPage } from '@/components/admin/admin-placeholder-page';
-import { Package } from 'lucide-react';
+import type { Metadata } from 'next';
+import { ProductManager } from '@/components/admin/products/product-manager';
+
+export const metadata: Metadata = {
+  title: 'Product & Variant Management | Admin Dashboard',
+  description: 'Manage catalogue products, variants, pricing, specifications, and images.',
+};
 
 export default function AdminProductsPage() {
   return (
-    <AdminPlaceholderPage
-      title="Product & Variant Management"
-      description="Manage catalogue items, technical specifications, variants, pricing, and publication states."
-      phase="Phase 4 — Product Catalogue and Inventory"
-      icon={Package}
-    />
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+      <ProductManager />
+    </div>
   );
 }

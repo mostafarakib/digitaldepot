@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/routing';
 import {
   Menu,
   Smartphone,
@@ -33,10 +34,13 @@ export function CategoryNav() {
       <div className="container mx-auto px-4 flex items-center justify-between">
         {/* All Categories Trigger */}
         <div className="relative group">
-          <button className="h-11 px-4 bg-primary text-primary-foreground font-medium text-xs flex items-center gap-2 hover:bg-primary/95 transition-colors cursor-pointer">
+          <Link
+            href="/products"
+            className="h-11 px-4 bg-primary text-primary-foreground font-medium text-xs flex items-center gap-2 hover:bg-primary/95 transition-colors cursor-pointer"
+          >
             <Menu className="size-4" />
             <span>{tNav('allCategories')}</span>
-          </button>
+          </Link>
         </div>
 
         {/* Category Links Strip */}
@@ -44,23 +48,27 @@ export function CategoryNav() {
           {categories.map((cat) => {
             const Icon = cat.icon;
             return (
-              <span
+              <Link
                 key={cat.id}
+                href={`/products?category=${cat.id}`}
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer rounded-md hover:bg-muted/50 whitespace-nowrap"
               >
                 <Icon className="size-3.5" />
                 <span>{cat.label}</span>
-              </span>
+              </Link>
             );
           })}
         </div>
 
         {/* Special Deals Accent */}
         <div className="flex items-center">
-          <span className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-full cursor-pointer hover:bg-amber-500/20 transition-colors">
+          <Link
+            href="/products?featured=true"
+            className="inline-flex items-center gap-1 px-3 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 rounded-full cursor-pointer hover:bg-amber-500/20 transition-colors"
+          >
             <Flame className="size-3.5 fill-amber-500" />
             <span>{tNav('deals')}</span>
-          </span>
+          </Link>
         </div>
       </div>
     </nav>

@@ -159,7 +159,8 @@ describe('Crypto Utilities', () => {
     it('rejects tampered state or HMAC', () => {
       const { rawState, hmac } = generateOAuthState();
       expect(verifyOAuthStateHmac(rawState + 'x', hmac)).toBe(false);
-      expect(verifyOAuthStateHmac(rawState, hmac.slice(0, -2) + '00')).toBe(false);
+      const flipped = hmac.endsWith('00') ? hmac.slice(0, -2) + 'ff' : hmac.slice(0, -2) + '00';
+      expect(verifyOAuthStateHmac(rawState, flipped)).toBe(false);
       expect(verifyOAuthStateHmac(rawState, 'invalid-length-hmac')).toBe(false);
     });
   });

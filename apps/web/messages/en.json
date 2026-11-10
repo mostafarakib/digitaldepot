@@ -204,6 +204,351 @@
       "delivered": "Delivered",
       "paid": "Paid",
       "codPending": "COD Pending"
+    },
+    "catalogue": {
+      "title": "Category & Brand Management",
+      "subtitle": "Hierarchical category taxonomy, brand associations, and catalogue structure",
+      "tabs": {
+        "categories": "Categories",
+        "brands": "Brands"
+      },
+      "categories": {
+        "addCategory": "Add Category",
+        "addSubcategory": "Add Subcategory",
+        "reorder": "Reorder Display",
+        "saveOrder": "Save Order",
+        "cancelOrder": "Cancel",
+        "editCategory": "Edit Category",
+        "deleteCategory": "Delete Category",
+        "empty": "No categories found. Click \"Add Category\" to create your first category.",
+        "treeHelp": "Use the arrow controls to organize category display ordering.",
+        "itemsCount": "{count} subcategories",
+        "statusActive": "Active",
+        "statusInactive": "Inactive",
+        "orderLabel": "Order: {order}",
+        "moveUp": "Move Up",
+        "moveDown": "Move Down"
+      },
+      "categoryForm": {
+        "createTitle": "Create Category",
+        "editTitle": "Edit Category",
+        "description": "Configure hierarchy, URL slug, and display settings.",
+        "nameLabel": "Category Name",
+        "namePlaceholder": "e.g. Smartphones, Laptops, Audio",
+        "slugLabel": "URL Slug",
+        "slugPlaceholder": "e.g. smartphones",
+        "slugHelp": "Lowercase alphanumeric characters separated by hyphens.",
+        "parentLabel": "Parent Category (Optional)",
+        "noParent": "None (Top-Level Category)",
+        "displayOrderLabel": "Display Order",
+        "displayOrderPlaceholder": "0",
+        "imageUrlLabel": "Image URL (Optional)",
+        "imageUrlPlaceholder": "https://res.cloudinary.com/...",
+        "descriptionLabel": "Description (Optional)",
+        "descriptionPlaceholder": "Brief summary of products in this category...",
+        "isActiveLabel": "Active and visible in storefront",
+        "save": "Save Category",
+        "saving": "Saving...",
+        "cancel": "Cancel"
+      },
+      "categoryDelete": {
+        "title": "Delete Category?",
+        "confirm": "Are you sure you want to delete category \"{name}\"? This action cannot be undone.",
+        "hasChildrenWarning": "This category has {count} subcategories. You must delete or reassign all subcategories before deleting this category.",
+        "deleteButton": "Delete Category",
+        "deletingButton": "Deleting..."
+      },
+      "brands": {
+        "addBrand": "Add Brand",
+        "searchPlaceholder": "Search brands by name or slug...",
+        "filterAll": "All Brands",
+        "filterActive": "Active Only",
+        "filterInactive": "Inactive Only",
+        "empty": "No brands found. Click \"Add Brand\" to create your first brand.",
+        "colLogo": "Brand",
+        "colSlug": "Slug",
+        "colWebsite": "Website",
+        "colStatus": "Status",
+        "colActions": "Actions",
+        "edit": "Edit",
+        "delete": "Delete"
+      },
+      "brandForm": {
+        "createTitle": "Create Brand",
+        "editTitle": "Edit Brand",
+        "description": "Configure brand details, logo, and external manufacturer website.",
+        "nameLabel": "Brand Name",
+        "namePlaceholder": "e.g. Apple, Samsung, Sony",
+        "slugLabel": "URL Slug",
+        "slugPlaceholder": "e.g. apple, samsung",
+        "logoUrlLabel": "Logo URL (Optional)",
+        "logoUrlPlaceholder": "https://...",
+        "websiteUrlLabel": "Official Website URL (Optional)",
+        "websiteUrlPlaceholder": "https://www.apple.com",
+        "descriptionLabel": "Description (Optional)",
+        "descriptionPlaceholder": "Brief brand overview...",
+        "isActiveLabel": "Active and available for products and filters",
+        "save": "Save Brand",
+        "saving": "Saving...",
+        "cancel": "Cancel"
+      },
+      "brandDelete": {
+        "title": "Delete Brand?",
+        "confirm": "Are you sure you want to delete brand \"{name}\"? This action cannot be undone.",
+        "deleteButton": "Delete Brand",
+        "deletingButton": "Deleting..."
+      },
+      "feedback": {
+        "categoryCreated": "Category created successfully.",
+        "categoryUpdated": "Category updated successfully.",
+        "categoryDeleted": "Category deleted successfully.",
+        "categoryReordered": "Category display order updated.",
+        "brandCreated": "Brand created successfully.",
+        "brandUpdated": "Brand updated successfully.",
+        "brandDeleted": "Brand deleted successfully.",
+        "genericError": "Failed to process request. Please try again."
+      }
+    },
+    "products": {
+      "title": "Product & Variant Management",
+      "subtitle": "Manage catalog products, variants, pricing, specifications, images, and publication lifecycle",
+      "addProduct": "Add Product",
+      "searchPlaceholder": "Search by name, summary, slug, or SKU...",
+      "filterAllCategories": "All Categories",
+      "filterAllBrands": "All Brands",
+      "filterAllStatus": "All Statuses",
+      "statusDraft": "Draft",
+      "statusPublished": "Published",
+      "statusArchived": "Archived",
+      "featuredOnly": "Featured Only",
+      "empty": "No products found. Click \"Add Product\" to create one.",
+      "colProduct": "Product",
+      "colCategory": "Category & Brand",
+      "colPrice": "Default Price",
+      "colVariants": "Variants",
+      "colStatus": "Status",
+      "colActions": "Actions",
+      "publish": "Publish",
+      "archive": "Archive",
+      "edit": "Edit",
+      "delete": "Delete",
+      "modal": {
+        "createTitle": "Add New Product",
+        "editTitle": "Edit Product: {name}",
+        "tabDetails": "Details",
+        "tabSpecifications": "Specifications",
+        "tabVariants": "Variants",
+        "tabImages": "Images",
+        "tabPublish": "Publication Gate",
+        "nameLabel": "Product Name",
+        "slugLabel": "URL Slug",
+        "categoryLabel": "Category",
+        "selectCategory": "Select Category",
+        "brandLabel": "Brand (Optional)",
+        "selectBrand": "Select Brand (Optional)",
+        "summaryLabel": "Short Summary",
+        "descriptionLabel": "Full Description",
+        "warrantyLabel": "Warranty Info (Optional)",
+        "featuredLabel": "Featured Product",
+        "initialSkuLabel": "Initial Variant SKU",
+        "initialPriceLabel": "Initial Selling Price (BDT ৳)",
+        "save": "Save Product",
+        "saving": "Saving...",
+        "cancel": "Cancel"
+      },
+      "specifications": {
+        "title": "Technical Specifications",
+        "addGroup": "Add Spec",
+        "colGroup": "Group",
+        "colName": "Attribute Name",
+        "colValue": "Value",
+        "empty": "No specifications defined. Click \"Add Spec\" to configure technical details."
+      },
+      "variants": {
+        "title": "Product Variants",
+        "addVariant": "Add Variant",
+        "colSku": "SKU",
+        "colName": "Variant Name",
+        "colPrice": "Price",
+        "colDefault": "Default",
+        "colStatus": "Status",
+        "priceHistory": "Price History",
+        "empty": "No variants found. Every product must have at least one variant."
+      },
+      "variantModal": {
+        "createTitle": "Add Variant",
+        "editTitle": "Edit Variant: {sku}",
+        "skuLabel": "SKU (Stock Keeping Unit)",
+        "skuHelp": "Uppercase alphanumeric characters with hyphens/underscores.",
+        "nameLabel": "Variant Name",
+        "priceLabel": "Selling Price (BDT ৳)",
+        "compareAtLabel": "Compare-At Price (BDT ৳)",
+        "costPriceLabel": "Cost Price (BDT ৳)",
+        "barcodeLabel": "Barcode / EAN (Optional)",
+        "isDefaultLabel": "Designate as Default Variant",
+        "isActiveLabel": "Active and Available for Purchase",
+        "reasonLabel": "Reason for Price Change (Audit Log)",
+        "reasonPlaceholder": "e.g. Supplier price adjustment, seasonal discount"
+      },
+      "priceHistoryModal": {
+        "title": "Price History Audit: {sku}",
+        "subtitle": "Immutable financial audit record of price changes",
+        "close": "Close"
+      },
+      "images": {
+        "title": "Product Images",
+        "addImage": "Add Image URL",
+        "urlLabel": "Image URL",
+        "altTextLabel": "Alt Text",
+        "isPrimaryLabel": "Primary Image",
+        "primaryBadge": "Primary",
+        "empty": "No images added. Products must have at least one image with a primary image designated to be published."
+      },
+      "publicationGate": {
+        "title": "Publication Criteria Verification",
+        "subtitle": "All 7 criteria must be satisfied to publish this product to the storefront",
+        "canPublish": "All publication criteria satisfied. Product is ready for publication.",
+        "cannotPublish": "Cannot publish. Resolve the following requirements first:",
+        "publishButton": "Publish Product Now",
+        "publishing": "Publishing...",
+        "alreadyPublished": "Product is currently Published."
+      },
+      "archiveDialog": {
+        "title": "Archive or Delete Product",
+        "archiveConfirm": "Are you sure you want to archive \"{name}\"? Archived products are hidden from the storefront but preserve order history.",
+        "archiveButton": "Archive Product",
+        "deleteConfirm": "Are you sure you want to permanently delete \"{name}\"?",
+        "deleteButton": "Delete Product",
+        "cannotDeleteWarning": "Note: Products with price change audit records cannot be permanently deleted. They should be archived instead."
+      },
+      "feedback": {
+        "productCreated": "Product created successfully.",
+        "productUpdated": "Product updated successfully.",
+        "productPublished": "Product published successfully.",
+        "productArchived": "Product archived successfully.",
+        "productDeleted": "Product deleted successfully.",
+        "imageAdded": "Image added successfully.",
+        "imageDeleted": "Image deleted successfully.",
+        "imageSetPrimary": "Primary image updated.",
+        "genericError": "Failed to process request. Please try again."
+      }
+    },
+    "inventory": {
+      "title": "Inventory Management",
+      "description": "Variant-level inventory tracking, atomic stock adjustments, and stock movement audit records.",
+      "searchPlaceholder": "Search inventory by SKU, product name, or variant...",
+      "loading": "Loading inventory...",
+      "metrics": {
+        "totalVariants": "Tracked Variants",
+        "variantsDesc": "SKUs with active inventory",
+        "totalUnits": "Physical Stock",
+        "unitsDesc": "Total units on-hand",
+        "lowStock": "Low Stock Alerts",
+        "lowStockDesc": "Units at or below threshold",
+        "outOfStock": "Out of Stock",
+        "outOfStockDesc": "Zero units available"
+      },
+      "filters": {
+        "all": "All Stock",
+        "inStock": "In Stock",
+        "lowStock": "Low Stock",
+        "outOfStock": "Out of Stock",
+        "allCategories": "All Categories"
+      },
+      "sort": {
+        "recent": "Recently Updated",
+        "stockHighToLow": "Stock: High to Low",
+        "stockLowToHigh": "Stock: Low to High",
+        "nameAsc": "Product Name (A-Z)",
+        "skuAsc": "SKU (A-Z)"
+      },
+      "table": {
+        "product": "Product & Variant",
+        "sku": "SKU",
+        "onHand": "On-Hand",
+        "reserved": "Reserved",
+        "available": "Available",
+        "threshold": "Threshold",
+        "status": "Status",
+        "actions": "Actions",
+        "defaultBadge": "Default",
+        "adjustButton": "Adjust Stock",
+        "historyButton": "History"
+      },
+      "status": {
+        "inStock": "In Stock",
+        "lowStock": "Low Stock",
+        "outOfStock": "Out of Stock"
+      },
+      "types": {
+        "RECEIVE": "Receive Stock",
+        "CORRECTION": "Inventory Count / Correction",
+        "DAMAGE": "Damaged / Expired",
+        "THEFT_LOSS": "Lost / Shrinkage",
+        "RETURN_RESTOCK": "Customer Return Restock"
+      },
+      "empty": {
+        "title": "No Inventory Items Found",
+        "desc": "Create variants in Catalogue Products to start tracking inventory."
+      },
+      "pagination": {
+        "showing": "Showing {count} of {total} tracked variants",
+        "page": "Page {page} of {totalPages}"
+      },
+      "common": {
+        "refresh": "Refresh",
+        "cancel": "Cancel",
+        "close": "Close",
+        "saving": "Saving...",
+        "prev": "Previous",
+        "next": "Next"
+      },
+      "adjustModal": {
+        "title": "Adjust Inventory Stock",
+        "typeLabel": "Adjustment Reason & Type",
+        "correctionModeLabel": "Correction Mode",
+        "setCountMode": "Set Counted On-Hand",
+        "relativeDeltaMode": "Relative Change (+/-)",
+        "targetCountLabel": "Counted On-Hand Quantity",
+        "targetCountHelp": "Enter the exact physical quantity currently on shelves.",
+        "deltaAmountLabel": "Quantity Change Delta (+/-)",
+        "unitsToAddLabel": "Units to Add",
+        "unitsToDeductLabel": "Units to Deduct",
+        "previewTitle": "Stock Transition Preview",
+        "invalidNegative": "Negative Stock Prohibited",
+        "noChange": "No Change (0)",
+        "valid": "Valid Transition",
+        "reasonLabel": "Audit Reason / Explanation",
+        "reasonPlaceholder": "e.g. Supplier PO #4812 received, or cycle count discrepancy",
+        "reasonHelp": "Mandatory explanation recorded in the immutable audit log.",
+        "submitButton": "Save Stock Adjustment",
+        "successMessage": "Stock adjustment recorded successfully.",
+        "errors": {
+          "zeroDelta": "Adjustment delta cannot be zero.",
+          "negativeStock": "Adjustment would result in negative on-hand or available stock.",
+          "reasonRequired": "A valid reason (minimum 3 characters) is required.",
+          "failed": "Failed to record stock adjustment. Please try again."
+        }
+      },
+      "historyModal": {
+        "title": "Stock Adjustment History",
+        "loading": "Loading audit trail...",
+        "empty": "No stock adjustments recorded for this variant yet.",
+        "error": "Failed to load adjustment history.",
+        "system": "System",
+        "page": "Page {page} of {totalPages}",
+        "cols": {
+          "date": "Date & Time",
+          "type": "Type",
+          "change": "Change",
+          "transition": "Transition",
+          "reason": "Reason",
+          "by": "Adjusted By"
+        }
+      },
+      "errors": {
+        "loadFailed": "Failed to load inventory data."
+      }
     }
   },
   "status": {
@@ -561,6 +906,65 @@
       "passwordMinLength": "Password must be at least 8 characters",
       "passwordMaxLength": "Password cannot exceed 128 characters",
       "passwordsDoNotMatch": "Passwords do not match"
+    }
+  },
+  "catalogue": {
+    "filters": {
+      "title": "Filters",
+      "categories": "Categories",
+      "allCategories": "All Categories",
+      "brands": "Brands",
+      "priceRange": "Price Range",
+      "minPrice": "Min",
+      "maxPrice": "Max",
+      "applyPrice": "Apply Price",
+      "inStockOnly": "In Stock Only",
+      "clearAll": "Clear All",
+      "activeFilters": "Active Filters"
+    },
+    "sorting": {
+      "label": "Sort by",
+      "featured": "Featured",
+      "newest": "Newest",
+      "priceAsc": "Price: Low to High",
+      "priceDesc": "Price: High to Low",
+      "nameAsc": "Name: A to Z",
+      "nameDesc": "Name: Z to A"
+    },
+    "listing": {
+      "allProducts": "All Products",
+      "showingCount": "Showing {from}–{to} of {total} products",
+      "searchResultFor": "Results for \"{query}\"",
+      "featuredBadge": "Featured",
+      "inStock": "In Stock",
+      "onlyXLeft": "Only {count} left",
+      "outOfStock": "Out of Stock",
+      "variantsAvailable": "{count} options available",
+      "loadingResults": "Updating results...",
+      "noProductsFound": "No Products Found",
+      "noProductsDescription": "We couldn't find any products matching your filters. Try clearing some filters or searching for something else.",
+      "previous": "Previous",
+      "next": "Next"
+    },
+    "detail": {
+      "breadcrumbsHome": "Home",
+      "sku": "SKU",
+      "saveAmount": "Save {amount}",
+      "selectVariant": "Select Option / Variant",
+      "addToCartDisabled": "Add to Cart will be available in Phase 5",
+      "addToCart": "Add to Cart",
+      "buyNow": "Buy Now",
+      "orderingComingSoonNotice": "Ordering and Cart functionality are scheduled for upcoming phases. Browse all specifications and availability below.",
+      "officialWarranty": "Official Warranty",
+      "brandWarranty": "Manufacturer warranty coverage",
+      "fastDelivery": "Fast Delivery",
+      "allOverBangladesh": "Available across Bangladesh",
+      "authenticProduct": "100% Authentic",
+      "verifiedOrigin": "Genuine products guaranteed",
+      "specificationsTab": "Specifications",
+      "descriptionTab": "Description",
+      "noSpecificationsProvided": "No detailed technical specifications are provided for this product.",
+      "noDescriptionProvided": "No detailed description is provided for this product."
     }
   }
 }

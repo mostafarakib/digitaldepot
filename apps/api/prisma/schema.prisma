@@ -48,6 +48,8 @@ model User {
   oauthAccounts       OAuthAccount[]
   oauthTransactions   OAuthTransaction[]
   oauthLinkChallenges OAuthLinkChallenge[]
+  priceHistories      PriceHistory[]
+  inventoryAdjustments InventoryAdjustment[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -182,4 +184,169 @@ model OAuthLinkChallenge {
   @@index([userId])
   @@index([challengePrefix])
   @@index([expiresAt])
+}
+
+model Category {
+  id           String     @id @default(cuid())
+  name         String
+  slug         String     @unique
+  description  String?
+  parentId     String?
+  parent       Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Category[] @relation("CategoryHierarchy")
+  products     Product[]
+  imageUrl     String?
+  isActive     Boolean    @default(true)
+  displayOrder Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([parentId])
+  @@index([isActive, displayOrder])
+}
+
+model Brand {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  logoUrl     String?
+  description String?
+  websiteUrl  String?
+  isActive    Boolean   @default(true)
+  products    Product[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([isActive])
+  @@index([name])
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  name           String
+  slug           String          @unique
+  summary        String?
+  description    String?
+  categoryId     String
+  category       Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  brandId        String?
+  brand          Brand?          @relation(fields: [brandId], references: [id], onDelete: Restrict)
+  status         ProductStatus   @default(DRAFT)
+  featured       Boolean         @default(false)
+  warranty       String?
+  specifications Json?           // Validated array of { group, name, value }
+  publishedAt    DateTime?
+  variants       ProductVariant[]
+  images         ProductImage[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([status])
+  @@index([featured])
+}
+
+model ProductImage {
+  id           String   @id @default(cuid())
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url          String
+  publicId     String?  // Cloudinary asset public_id
+  altText      String?
+  displayOrder Int      @default(0)
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([productId, displayOrder])
+  @@index([productId, isPrimary])
+}
+
+model ProductVariant {
+  id             String         @id @default(cuid())
+  productId      String
+  product        Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sku            String         @unique // Normalized uppercase
+  name           String         // e.g. "Natural Titanium / 256GB" or "Default"
+  price          Int            // Integer poisha: ৳1,000 = 100,000 poisha
+  compareAtPrice Int?           // Optional strike-through price in poisha
+  costPrice      Int?           // Optional wholesale cost in poisha
+  barcode        String?
+  attributes     Json           @default("{}") // e.g. { "Color": "Titanium", "Storage": "256GB" }
+  isDefault      Boolean        @default(false)
+  isActive       Boolean        @default(true)
+  priceHistory   PriceHistory[]
+  inventoryItem  InventoryItem?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([productId])
+  @@index([productId, isDefault])
+  @@index([isActive])
+}
+
+model PriceHistory {
+  id              String         @id @default(cuid())
+  variantId       String
+  variant         ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  oldPrice        Int            // Minor units (poisha)
+  newPrice        Int            // Minor units (poisha)
+  oldCompareAt    Int?
+  newCompareAt    Int?
+  oldCostPrice    Int?
+  newCostPrice    Int?
+  reason          String?        // Audit explanation
+  changedByUserId String?
+  changedByUser   User?          @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime       @default(now())
+
+  @@index([variantId, createdAt])
+  @@index([changedByUserId])
+}
+
+enum InventoryAdjustmentType {
+  RECEIVE
+  CORRECTION
+  DAMAGE
+  THEFT_LOSS
+  RETURN_RESTOCK
+}
+
+model InventoryItem {
+  id                String                @id @default(cuid())
+  variantId         String                @unique
+  variant           ProductVariant        @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity          Int                   @default(0) // Physical on-hand stock
+  reservedQuantity  Int                   @default(0) // Reserved by pending checkouts (Phase 6)
+  lowStockThreshold Int?                  @default(5) // Threshold for low-stock alert
+  adjustments       InventoryAdjustment[]
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@index([variantId])
+}
+
+model InventoryAdjustment {
+  id               String                  @id @default(cuid())
+  inventoryItemId  String
+  inventoryItem    InventoryItem           @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  type             InventoryAdjustmentType
+  quantityDelta    Int                     // Signed non-zero integer (+/-)
+  oldQuantity      Int                     // On-hand stock before adjustment
+  newQuantity      Int                     // On-hand stock after adjustment
+  reason           String                  // Mandatory audit explanation
+  adjustedByUserId String?
+  adjustedByUser   User?                   @relation(fields: [adjustedByUserId], references: [id], onDelete: SetNull)
+  createdAt        DateTime                @default(now())
+
+  @@index([inventoryItemId, createdAt])
+  @@index([adjustedByUserId])
+  @@index([type])
 }

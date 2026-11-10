@@ -1,14 +1,17 @@
 import React from 'react';
-import { AdminPlaceholderPage } from '@/components/admin/admin-placeholder-page';
-import { Boxes } from 'lucide-react';
+import type { Metadata } from 'next';
+import { InventoryManager } from '@/components/admin/inventory/inventory-manager';
+
+export const metadata: Metadata = {
+  title: 'Inventory & Stock Management | Admin Dashboard',
+  description:
+    'Variant-level inventory tracking, atomic stock adjustments, and stock movement audit records.',
+};
 
 export default function AdminInventoryPage() {
   return (
-    <AdminPlaceholderPage
-      title="Inventory & Stock Tracking"
-      description="Variant-level inventory adjustment, low-stock threshold management, and stock audit records."
-      phase="Phase 4 — Product Catalogue and Inventory"
-      icon={Boxes}
-    />
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+      <InventoryManager />
+    </div>
   );
 }

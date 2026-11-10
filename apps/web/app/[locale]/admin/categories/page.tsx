@@ -1,14 +1,16 @@
 import React from 'react';
-import { AdminPlaceholderPage } from '@/components/admin/admin-placeholder-page';
-import { Tags } from 'lucide-react';
+import type { Metadata } from 'next';
+import { CategoryBrandManager } from '@/components/admin/catalogue/category-brand-manager';
+
+export const metadata: Metadata = {
+  title: 'Category & Brand Management | Admin Dashboard',
+  description: 'Manage catalogue categories, hierarchical taxonomy, and brand associations.',
+};
 
 export default function AdminCategoriesPage() {
   return (
-    <AdminPlaceholderPage
-      title="Category & Brand Management"
-      description="Hierarchical category taxonomy, brand associations, and catalogue browsing structure."
-      phase="Phase 4 — Product Catalogue and Inventory"
-      icon={Tags}
-    />
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+      <CategoryBrandManager />
+    </div>
   );
 }

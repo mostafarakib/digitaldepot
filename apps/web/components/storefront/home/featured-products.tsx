@@ -1,13 +1,59 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
+import { Link } from '@/i18n/routing';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Star, ShoppingCart, Heart, Smartphone, Laptop, Monitor, Headphones } from 'lucide-react';
+import { ProductCard } from '../product-card';
+import type { StorefrontProductSummary } from '@/lib/catalogue-types';
+import {
+  Star,
+  ShoppingCart,
+  Heart,
+  Smartphone,
+  Laptop,
+  Monitor,
+  Headphones,
+  ArrowRight,
+} from 'lucide-react';
 
-export function FeaturedProducts() {
+interface FeaturedProductsProps {
+  products?: StorefrontProductSummary[];
+}
+
+export function FeaturedProducts({ products: liveProducts }: FeaturedProductsProps) {
   const t = useTranslations('home');
   const tCommon = useTranslations('common');
+
+  if (liveProducts && liveProducts.length > 0) {
+    return (
+      <section className="container mx-auto px-4 py-8">
+        <div className="flex items-end justify-between mb-6">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              {t('featuredDealsTitle')}
+            </h2>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">
+              {t('featuredDealsSubtitle')}
+            </p>
+          </div>
+          <Link
+            href="/products?featured=true"
+            className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+          >
+            <span>View All</span>
+            <ArrowRight className="size-3.5" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          {liveProducts.map((p) => (
+            <ProductCard key={p.id} product={p} />
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   const products = [
     {

@@ -1,5 +1,8 @@
-import React from 'react';
+'use client';
+
+import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { useRouter } from '@/i18n/routing';
 import { Logo } from '@/components/common/logo';
 import { Search, Heart, ShoppingCart, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,6 +14,17 @@ interface MainHeaderProps {
 
 export function MainHeader({ onOpenMobileMenu }: MainHeaderProps) {
   const t = useTranslations('common');
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      router.push(`/products?q=${encodeURIComponent(searchQuery.trim())}`);
+    } else {
+      router.push('/products');
+    }
+  };
 
   return (
     <div className="w-full bg-background border-b border-border sticky top-0 z-40 backdrop-blur-md bg-background/95">
@@ -29,27 +43,25 @@ export function MainHeader({ onOpenMobileMenu }: MainHeaderProps) {
           <Logo />
         </div>
 
-        {/* Search Bar Placeholder (UI Only) */}
+        {/* Search Bar */}
         <div className="hidden md:flex flex-1 max-w-xl mx-4">
-          <div className="relative w-full flex items-center">
+          <form onSubmit={handleSearchSubmit} className="relative w-full flex items-center">
             <div className="absolute left-3 text-muted-foreground pointer-events-none">
               <Search className="size-4" />
             </div>
             <input
               type="text"
-              readOnly
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('search')}
-              className="w-full h-10 pl-9 pr-24 rounded-lg border border-input bg-muted/40 hover:bg-muted/70 focus:bg-background text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-default"
+              className="w-full h-10 pl-9 pr-24 rounded-lg border border-input bg-muted/40 hover:bg-muted/70 focus:bg-background text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-text"
             />
             <div className="absolute right-2 flex items-center gap-1.5">
-              <kbd className="hidden lg:inline-flex h-5 select-none items-center gap-1 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-                Ctrl K
-              </kbd>
-              <Button size="sm" className="h-7 px-3 text-xs">
-                {t('searchCategory')}
+              <Button type="submit" size="sm" className="h-7 px-3 text-xs">
+                {t('search')}
               </Button>
             </div>
-          </div>
+          </form>
         </div>
 
         {/* User Entry Points */}
