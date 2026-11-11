@@ -2,6 +2,10 @@ import { Router } from 'express';
 import healthRouter from './health.js';
 import authRouter from '../modules/auth/auth.routes.js';
 import accountRouter from '../modules/account/account.routes.js';
+import cartRouter from '../modules/cart/cart.routes.js';
+import wishlistRouter from '../modules/wishlist/wishlist.routes.js';
+import checkoutRouter from '../modules/checkout/checkout.routes.js';
+import { productReviewRouter, adminReviewRouter } from '../modules/review/review.routes.js';
 import {
   publicCategoryRouter,
   publicBrandRouter,
@@ -12,6 +16,7 @@ import {
   adminVariantRouter,
   adminInventoryRouter,
 } from '../modules/catalogue/catalogue.routes.js';
+import { adminCouponRouter } from '../modules/coupon/coupon.routes.js';
 
 const router = Router();
 
@@ -19,10 +24,16 @@ router.use('/health', healthRouter);
 router.use('/auth', authRouter);
 router.use('/account', accountRouter);
 
-// Public catalogue routes
+// Public catalogue routes & reviews
 router.use('/categories', publicCategoryRouter);
 router.use('/brands', publicBrandRouter);
+router.use('/products', productReviewRouter);
 router.use('/products', publicProductRouter);
+
+// Shopping cart, Wishlist & Checkout routes
+router.use('/cart', cartRouter);
+router.use('/wishlist', wishlistRouter);
+router.use('/checkout', checkoutRouter);
 
 // Admin catalogue management routes
 router.use('/admin/categories', adminCategoryRouter);
@@ -30,5 +41,9 @@ router.use('/admin/brands', adminBrandRouter);
 router.use('/admin/products', adminProductRouter);
 router.use('/admin/variants', adminVariantRouter);
 router.use('/admin/inventory', adminInventoryRouter);
+
+// Admin promotion & moderation routes
+router.use('/admin/coupons', adminCouponRouter);
+router.use('/admin/reviews', adminReviewRouter);
 
 export default router;

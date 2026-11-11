@@ -50,6 +50,10 @@ model User {
   oauthLinkChallenges OAuthLinkChallenge[]
   priceHistories      PriceHistory[]
   inventoryAdjustments InventoryAdjustment[]
+  cart                Cart?
+  couponUsages        CouponUsage[]
+  wishlistItems       WishlistItem[]
+  productReviews      ProductReview[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -244,6 +248,8 @@ model Product {
   publishedAt    DateTime?
   variants       ProductVariant[]
   images         ProductImage[]
+  wishlistItems  WishlistItem[]
+  reviews        ProductReview[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -284,6 +290,7 @@ model ProductVariant {
   isActive       Boolean        @default(true)
   priceHistory   PriceHistory[]
   inventoryItem  InventoryItem?
+  cartItems      CartItem[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -350,3 +357,124 @@ model InventoryAdjustment {
   @@index([adjustedByUserId])
   @@index([type])
 }
+
+model Cart {
+  id                String     @id @default(cuid())
+  userId            String?    @unique // Authenticated customer cart (1:1)
+  user              User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  guestTokenHash    String?    @unique // SHA-256 hash of 256-bit opaque guest token
+  couponId          String?
+  coupon            Coupon?    @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  estimatedDistrict String?    // Normalized district ID (e.g. "DHAKA", "CHATTOGRAM") for delivery estimation
+  items             CartItem[]
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  @@index([userId])
+  @@index([guestTokenHash])
+  @@index([couponId])
+}
+
+model CartItem {
+  id             String         @id @default(cuid())
+  cartId         String
+  cart           Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  variantId      String
+  variant        ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  quantity       Int            @default(1)
+  unitPriceAtAdd Int            // Informational snapshot in integer BDT poisha
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([cartId, variantId])
+  @@index([cartId])
+  @@index([variantId])
+}
+
+enum CouponDiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+model Coupon {
+  id                String             @id @default(cuid())
+  code              String             @unique
+  description       String?
+  discountType      CouponDiscountType
+  discountValue     Int                // Percentage (1-100) or fixed amount in BDT poisha
+  maxDiscountAmount Int?               // Max discount cap in BDT poisha (for percentage)
+  minOrderAmount    Int?               // Minimum subtotal in BDT poisha
+  startDate         DateTime
+  endDate           DateTime
+  usageLimit        Int?               // Global max usage count (null = unlimited)
+  usageCount        Int                @default(0) // Tracked global usage
+  perCustomerLimit  Int?               @default(1) // Max usage per customer (null = unlimited)
+  isActive          Boolean            @default(true)
+  usages            CouponUsage[]
+  carts             Cart[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+  @@index([startDate, endDate])
+}
+
+model CouponUsage {
+  id        String   @id @default(cuid())
+  couponId  String
+  coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Restrict)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String?  // Reference to order (order relation introduced in Phase 6)
+  usedAt    DateTime @default(now())
+
+  @@index([couponId])
+  @@index([userId])
+  @@index([couponId, userId])
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}
+
+model ProductReview {
+  id                 String       @id @default(cuid())
+  userId             String
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId          String
+  product            Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  rating             Int          // 1 to 5 integer
+  title              String?      // Optional review headline (max 120 chars)
+  comment            String       // Detailed feedback text (min 5, max 2000 chars)
+  status             ReviewStatus @default(PENDING)
+  isVerifiedPurchase Boolean      @default(false) // Ready for Phase 6 order linkage
+  moderatedAt        DateTime?
+  moderatorId        String?      // Admin user ID who reviewed
+  rejectionReason    String?      // Optional feedback note on rejection
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@unique([userId, productId])
+  @@index([productId, status])
+  @@index([userId])
+  @@index([status, createdAt])
+}
+
+
+

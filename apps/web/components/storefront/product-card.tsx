@@ -6,8 +6,10 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Badge } from '@/components/ui/badge';
 import { formatPoishaToBDT } from '@/lib/utils';
+import { useCart } from '@/components/storefront/cart/cart-provider';
+import { useWishlist } from '@/components/storefront/wishlist/wishlist-provider';
 import type { StorefrontProductSummary } from '@/lib/catalogue-types';
-import { Package, ShieldCheck, ShoppingCart } from 'lucide-react';
+import { Package, ShieldCheck, ShoppingCart, Heart } from 'lucide-react';
 
 interface ProductCardProps {
   product: StorefrontProductSummary;
@@ -15,6 +17,12 @@ interface ProductCardProps {
 
 export function ProductCard({ product }: ProductCardProps) {
   const t = useTranslations('catalogue');
+  const tWishlist = useTranslations('wishlist');
+  const { addToCart } = useCart();
+  const { isInWishlist, toggleWishlist } = useWishlist();
+  const [isAdding, setIsAdding] = React.useState(false);
+
+  const isWishlisted = isInWishlist(product.id);
 
   const discountPercent =
     product.compareAtPrice && product.compareAtPrice > product.minPrice
@@ -55,10 +63,6 @@ export function ProductCard({ product }: ProductCardProps) {
               -{discountPercent}%
             </Badge>
           )}
-        </div>
-
-        {/* Stock Badge Overlay */}
-        <div className="absolute top-2.5 right-2.5 z-10">
           {!product.isInStock ? (
             <span className="inline-flex items-center text-[10px] font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full">
               {t('listing.outOfStock')}
@@ -67,12 +71,29 @@ export function ProductCard({ product }: ProductCardProps) {
             <span className="inline-flex items-center text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full">
               {t('listing.onlyXLeft', { count: product.totalAvailableStock })}
             </span>
-          ) : (
-            <span className="inline-flex items-center text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-              {t('listing.inStock')}
-            </span>
-          )}
+          ) : null}
         </div>
+
+        {/* Wishlist Button Overlay */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void toggleWishlist(product.id);
+          }}
+          title={isWishlisted ? tWishlist('removeFromWishlist') : tWishlist('addToWishlist')}
+          aria-label={isWishlisted ? tWishlist('removeFromWishlist') : tWishlist('addToWishlist')}
+          className="absolute top-2.5 right-2.5 z-20 size-8 rounded-full bg-background/80 backdrop-blur-xs flex items-center justify-center hover:bg-background transition-colors shadow-xs"
+        >
+          <Heart
+            className={`size-4 transition-colors ${
+              isWishlisted
+                ? 'fill-rose-500 text-rose-500'
+                : 'text-muted-foreground hover:text-rose-500'
+            }`}
+          />
+        </button>
       </Link>
 
       {/* Product Content */}
@@ -121,15 +142,46 @@ export function ProductCard({ product }: ProductCardProps) {
             )}
           </div>
 
-          {/* Quick Action / Phase boundary indicator */}
-          <button
-            disabled
-            title={t('detail.addToCartDisabled')}
-            className="size-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 flex items-center justify-center transition-colors opacity-70 cursor-not-allowed"
-            aria-label={t('detail.addToCartDisabled')}
-          >
-            <ShoppingCart className="size-4" />
-          </button>
+          {/* Quick Add / View Options */}
+          {product.variantCount === 1 && product.defaultVariantId && product.isInStock ? (
+            <button
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (isAdding) return;
+                setIsAdding(true);
+                try {
+                  await addToCart(product.defaultVariantId!, 1);
+                } finally {
+                  setIsAdding(false);
+                }
+              }}
+              disabled={isAdding}
+              title={t('detail.addToCart')}
+              aria-label={t('detail.addToCart')}
+              className="size-8 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground flex items-center justify-center transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <ShoppingCart className="size-4" />
+            </button>
+          ) : product.isInStock ? (
+            <Link
+              href={`/products/${product.slug}`}
+              title={t('listing.viewOptions')}
+              aria-label={t('listing.viewOptions')}
+              className="size-8 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <ShoppingCart className="size-4" />
+            </Link>
+          ) : (
+            <button
+              disabled
+              title={t('listing.outOfStock')}
+              aria-label={t('listing.outOfStock')}
+              className="size-8 rounded-lg bg-muted text-muted-foreground flex items-center justify-center opacity-50 cursor-not-allowed"
+            >
+              <ShoppingCart className="size-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>

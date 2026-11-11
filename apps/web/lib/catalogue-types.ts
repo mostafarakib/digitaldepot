@@ -395,6 +395,7 @@ export interface StorefrontProductSummary {
   isInStock: boolean;
   totalAvailableStock: number;
   variantCount: number;
+  defaultVariantId?: string | null;
 }
 
 export interface StorefrontProductDetail {

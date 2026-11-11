@@ -2,11 +2,14 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { useRouter } from '@/i18n/routing';
+import { Link, useRouter } from '@/i18n/routing';
 import { Logo } from '@/components/common/logo';
 import { Search, Heart, ShoppingCart, SlidersHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UserMenu } from '@/components/auth/user-menu';
+import { useCart } from '@/components/storefront/cart/cart-provider';
+import { useWishlist } from '@/components/storefront/wishlist/wishlist-provider';
+import { formatPoishaToBDT } from '@/lib/utils';
 
 interface MainHeaderProps {
   onOpenMobileMenu?: () => void;
@@ -15,6 +18,8 @@ interface MainHeaderProps {
 export function MainHeader({ onOpenMobileMenu }: MainHeaderProps) {
   const t = useTranslations('common');
   const router = useRouter();
+  const { cart, openDrawer } = useCart();
+  const { itemCount: wishlistCount } = useWishlist();
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -70,34 +75,42 @@ export function MainHeader({ onOpenMobileMenu }: MainHeaderProps) {
           <UserMenu />
 
           {/* Wishlist */}
-          <div
+          <Link
+            href="/wishlist"
             className="relative size-9 rounded-lg hover:bg-muted/50 flex items-center justify-center cursor-pointer transition-colors"
             title={t('wishlist')}
             aria-label={t('wishlist')}
           >
             <Heart className="size-5 text-muted-foreground" />
-            <span className="absolute top-1 right-1 size-4 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center">
-              0
-            </span>
-          </div>
+            {wishlistCount > 0 && (
+              <span className="absolute top-1 right-1 size-4 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center">
+                {wishlistCount > 99 ? '99+' : wishlistCount}
+              </span>
+            )}
+          </Link>
 
           {/* Cart */}
-          <div
-            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+          <button
+            onClick={openDrawer}
+            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors text-left"
             title={t('cart')}
             aria-label={t('cart')}
           >
             <div className="relative size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
               <ShoppingCart className="size-5" />
-              <span className="absolute -top-1 -right-1 size-4 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center">
-                0
-              </span>
+              {(cart?.totalQuantity ?? 0) > 0 && (
+                <span className="absolute -top-1 -right-1 size-4 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center">
+                  {cart?.totalQuantity}
+                </span>
+              )}
             </div>
             <div className="hidden sm:flex flex-col text-left leading-tight">
               <span className="text-[11px] text-muted-foreground font-normal">{t('cart')}</span>
-              <span className="text-xs font-bold text-foreground">{t('bdt')} 0</span>
+              <span className="text-xs font-bold text-foreground">
+                {formatPoishaToBDT(cart?.subtotal ?? 0)}
+              </span>
             </div>
-          </div>
+          </button>
         </div>
       </div>
 

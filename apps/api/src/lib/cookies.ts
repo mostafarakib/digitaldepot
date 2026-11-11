@@ -6,6 +6,7 @@ export const COOKIE_NAMES = {
   ACCESS_TOKEN: 'dd_access_token',
   REFRESH_TOKEN: 'dd_refresh_token',
   CSRF_TOKEN: 'dd_csrf',
+  GUEST_CART: 'dd_cart_token',
 } as const;
 
 function getBaseCookieOptions(): CookieOptions {
@@ -115,4 +116,26 @@ export function clearOAuthLinkCookie(res: Response, challengePrefix: string): vo
     maxAge: 0,
     expires: new Date(0),
   });
+}
+
+export function getGuestCartCookieOptions(): CookieOptions {
+  return {
+    ...getBaseCookieOptions(),
+    httpOnly: true,
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days guest cart retention
+  };
+}
+
+export function setGuestCartCookie(res: Response, rawToken: string): void {
+  res.cookie(COOKIE_NAMES.GUEST_CART, rawToken, getGuestCartCookieOptions());
+}
+
+export function clearGuestCartCookie(res: Response): void {
+  const clearOptions: CookieOptions = {
+    ...getBaseCookieOptions(),
+    httpOnly: true,
+    maxAge: 0,
+    expires: new Date(0),
+  };
+  res.cookie(COOKIE_NAMES.GUEST_CART, '', clearOptions);
 }

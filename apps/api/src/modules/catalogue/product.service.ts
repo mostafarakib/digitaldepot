@@ -632,6 +632,7 @@ export class ProductService {
     const existing = await prisma.product.findUnique({
       where: { id },
       include: {
+        _count: { select: { reviews: true } },
         variants: {
           include: {
             _count: { select: { priceHistory: true } },
@@ -650,6 +651,14 @@ export class ProductService {
 
     if (!existing) {
       throw new NotFoundError('PRODUCT_NOT_FOUND', 'Product not found');
+    }
+
+    // Safeguard: Check if product has existing customer reviews (Clarification #2)
+    if (existing._count.reviews > 0) {
+      throw new ConflictError(
+        'PRODUCT_HAS_REVIEWS',
+        'Cannot delete product because it has customer reviews. Archive the product instead to preserve review history.',
+      );
     }
 
     // Check if any variant has multiple price-history records
@@ -700,6 +709,10 @@ export class ProductService {
       }
 
       await tx.productImage.deleteMany({
+        where: { productId: id },
+      });
+
+      await tx.wishlistItem.deleteMany({
         where: { productId: id },
       });
 
@@ -989,6 +1002,7 @@ export class ProductService {
         isInStock,
         totalAvailableStock,
         variantCount: activeVariants.length,
+        defaultVariantId: defaultVariant?.id ?? null,
       };
     });
 
@@ -1215,3 +1229,46 @@ export class ProductService {
 }
 
 export const productService = new ProductService();
+
+export const STOREFRONT_PRODUCT_VISIBILITY_WHERE: Prisma.ProductWhereInput = {
+  status: 'PUBLISHED',
+  category: { isActive: true },
+  OR: [{ brandId: null }, { brand: { isActive: true } }],
+  variants: { some: { isActive: true } },
+};
+
+/**
+ * Validates whether a product meets all Phase 4D storefront publication visibility criteria:
+ * 1. status is PUBLISHED
+ * 2. category.isActive is true
+ * 3. brand is null OR brand.isActive is true
+ * 4. at least one variant has isActive: true
+ *
+ * Accepts either productId or slug.
+ * Returns the resolved product or throws NotFoundError.
+ */
+export async function validateStorefrontVisibility(
+  idOrSlug: string,
+  tx: Prisma.TransactionClient | typeof prisma = prisma,
+) {
+  const product = await tx.product.findFirst({
+    where: {
+      OR: [{ id: idOrSlug }, { slug: idOrSlug }],
+      ...STOREFRONT_PRODUCT_VISIBILITY_WHERE,
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      categoryId: true,
+      brandId: true,
+      status: true,
+    },
+  });
+
+  if (!product) {
+    throw new NotFoundError('PRODUCT_NOT_FOUND', 'Product not found');
+  }
+
+  return product;
+}

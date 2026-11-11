@@ -1,4 +1,28 @@
-import type { ApiResponse } from './auth-types';
+import type { ApiResponse, ApiSuccessResponse } from './auth-types';
+import type {
+  CartData,
+  AddToCartInput,
+  UpdateCartItemInput,
+  EstimateShippingInput,
+} from './cart-types';
+import type {
+  AdminCoupon,
+  CreateCouponInput,
+  UpdateCouponInput,
+  CouponListResponse,
+} from './coupon-types';
+import type { WishlistResponseData } from './wishlist-types';
+import type {
+  ProductReviewsResponse,
+  CreateReviewInput,
+  ModerateReviewInput,
+  AdminReviewsListResponse,
+} from './review-types';
+import type {
+  CheckoutValidationResult,
+  AddressListOutput,
+  SelectedAddressSummary,
+} from './checkout-types';
 
 export class ApiError extends Error {
   code: string;
@@ -456,5 +480,283 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
     throw new ApiError(error.message, error.code, res.status, error.details);
   }
 
-  return data.data;
+  return (data as ApiSuccessResponse<T>).data !== undefined
+    ? (data as ApiSuccessResponse<T>).data
+    : (data as unknown as T);
+}
+
+// -------------------------------------------------------------
+// Cart API Client Methods
+// -------------------------------------------------------------
+
+export async function getCartApi(): Promise<CartData> {
+  return apiClient<CartData>('/api/cart');
+}
+
+export async function addToCartApi(input: AddToCartInput): Promise<CartData> {
+  return apiClient<CartData>('/api/cart/items', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateCartItemApi(
+  itemId: string,
+  input: UpdateCartItemInput,
+): Promise<CartData> {
+  return apiClient<CartData>(`/api/cart/items/${itemId}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function removeCartItemApi(itemId: string): Promise<CartData> {
+  return apiClient<CartData>(`/api/cart/items/${itemId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function clearCartApi(): Promise<CartData> {
+  return apiClient<CartData>('/api/cart', {
+    method: 'DELETE',
+  });
+}
+
+export async function mergeCartApi(): Promise<CartData> {
+  return apiClient<CartData>('/api/cart/merge', {
+    method: 'POST',
+  });
+}
+
+export async function applyCouponApi(code: string): Promise<CartData> {
+  return apiClient<CartData>('/api/cart/coupon', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+}
+
+export async function removeCouponApi(): Promise<CartData> {
+  return apiClient<CartData>('/api/cart/coupon', {
+    method: 'DELETE',
+  });
+}
+
+export async function estimateShippingApi(input: EstimateShippingInput): Promise<CartData> {
+  return apiClient<CartData>('/api/cart/shipping', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function clearShippingEstimateApi(): Promise<CartData> {
+  return apiClient<CartData>('/api/cart/shipping', {
+    method: 'DELETE',
+  });
+}
+
+// -------------------------------------------------------------
+// Admin Coupon Management API Helpers (Phase 5B)
+// -------------------------------------------------------------
+
+export async function getAdminCouponsApi(
+  params?: Record<string, string | number>,
+): Promise<CouponListResponse> {
+  const query = params
+    ? '?' +
+      new URLSearchParams(
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)]),
+      ).toString()
+    : '';
+
+  return apiClient<CouponListResponse>(`/api/admin/coupons${query}`);
+}
+
+export async function getAdminCouponByIdApi(id: string): Promise<AdminCoupon> {
+  return apiClient<AdminCoupon>(`/api/admin/coupons/${id}`);
+}
+
+export async function createAdminCouponApi(input: CreateCouponInput): Promise<AdminCoupon> {
+  return apiClient<AdminCoupon>('/api/admin/coupons', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateAdminCouponApi(
+  id: string,
+  input: UpdateCouponInput,
+): Promise<AdminCoupon> {
+  return apiClient<AdminCoupon>(`/api/admin/coupons/${id}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function toggleAdminCouponActiveApi(id: string): Promise<AdminCoupon> {
+  return apiClient<AdminCoupon>(`/api/admin/coupons/${id}/toggle-active`, {
+    method: 'PATCH',
+  });
+}
+
+export async function deleteAdminCouponApi(
+  id: string,
+): Promise<{ success: boolean; message: string }> {
+  return apiClient<{ success: boolean; message: string }>(`/api/admin/coupons/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+// -------------------------------------------------------------
+// Wishlist Client Methods (Phase 5D)
+// -------------------------------------------------------------
+
+export async function getWishlistApi(): Promise<WishlistResponseData> {
+  return apiClient<WishlistResponseData>('/api/wishlist');
+}
+
+export async function addToWishlistApi(
+  productId: string,
+): Promise<{ id: string; productId: string }> {
+  return apiClient<{ id: string; productId: string }>('/api/wishlist', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ productId }),
+  });
+}
+
+export async function removeFromWishlistApi(
+  productId: string,
+): Promise<{ success: boolean; message: string }> {
+  return apiClient<{ success: boolean; message: string }>(
+    `/api/wishlist/${encodeURIComponent(productId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+// -------------------------------------------------------------
+// Product Reviews Client Methods (Phase 5D)
+// -------------------------------------------------------------
+
+export async function getProductReviewsApi(
+  slug: string,
+  params?: Record<string, string | number>,
+): Promise<ProductReviewsResponse> {
+  const query = params
+    ? '?' +
+      new URLSearchParams(
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)]),
+      ).toString()
+    : '';
+
+  return apiClient<ProductReviewsResponse>(
+    `/api/products/${encodeURIComponent(slug)}/reviews${query}`,
+  );
+}
+
+export async function submitReviewApi(
+  slug: string,
+  input: CreateReviewInput,
+): Promise<{ id: string; rating: number; title: string | null; comment: string; status: string }> {
+  return apiClient<{
+    id: string;
+    rating: number;
+    title: string | null;
+    comment: string;
+    status: string;
+  }>(`/api/products/${encodeURIComponent(slug)}/reviews`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteMyReviewApi(
+  slug: string,
+): Promise<{ success: boolean; message: string }> {
+  return apiClient<{ success: boolean; message: string }>(
+    `/api/products/${encodeURIComponent(slug)}/reviews/my-review`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+export async function getAdminReviewsApi(
+  params?: Record<string, string | number>,
+): Promise<AdminReviewsListResponse> {
+  const query = params
+    ? '?' +
+      new URLSearchParams(
+        Object.entries(params)
+          .filter(([, v]) => v !== undefined && v !== '')
+          .map(([k, v]) => [k, String(v)]),
+      ).toString()
+    : '';
+
+  return apiClient<AdminReviewsListResponse>(`/api/admin/reviews${query}`);
+}
+
+export async function moderateReviewApi(
+  id: string,
+  input: ModerateReviewInput,
+): Promise<{ id: string; status: string }> {
+  return apiClient<{ id: string; status: string }>(
+    `/api/admin/reviews/${encodeURIComponent(id)}/status`,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function deleteAdminReviewApi(
+  id: string,
+): Promise<{ success: boolean; message: string }> {
+  return apiClient<{ success: boolean; message: string }>(
+    `/api/admin/reviews/${encodeURIComponent(id)}`,
+    {
+      method: 'DELETE',
+    },
+  );
+}
+
+// -------------------------------------------------------------
+// Checkout & Address Client Methods (Phase 5E)
+// -------------------------------------------------------------
+
+export async function validateCheckoutApi(
+  input: { addressId?: string } = {},
+): Promise<CheckoutValidationResult> {
+  return apiClient<CheckoutValidationResult>('/api/checkout/validate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getAddressesApi(): Promise<AddressListOutput> {
+  return apiClient<AddressListOutput>('/api/account/addresses');
+}
+
+export async function createAddressApi(
+  input: Record<string, unknown>,
+): Promise<{ address: SelectedAddressSummary }> {
+  return apiClient<{ address: SelectedAddressSummary }>('/api/account/addresses', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
 }

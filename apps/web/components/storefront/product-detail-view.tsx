@@ -7,6 +7,9 @@ import { Link } from '@/i18n/routing';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatPoishaToBDT } from '@/lib/utils';
+import { useCart } from '@/components/storefront/cart/cart-provider';
+import { useWishlist } from '@/components/storefront/wishlist/wishlist-provider';
+import { ProductReviewsSection } from '@/components/storefront/product/product-reviews-section';
 import type { StorefrontProductDetail } from '@/lib/catalogue-types';
 import {
   Package,
@@ -19,6 +22,8 @@ import {
   Zap,
   ChevronRight,
   Info,
+  Heart,
+  MessageSquare,
 } from 'lucide-react';
 
 interface ProductDetailViewProps {
@@ -27,9 +32,18 @@ interface ProductDetailViewProps {
 
 export function ProductDetailView({ product }: ProductDetailViewProps) {
   const t = useTranslations('catalogue');
+  const tWishlist = useTranslations('wishlist');
+  const tReviews = useTranslations('reviews');
+  const { addToCart } = useCart();
+  const { isInWishlist, toggleWishlist } = useWishlist();
 
   // Currently selected variant ID (defaults to default variant)
   const [selectedVariantId, setSelectedVariantId] = useState<string>(product.defaultVariantId);
+  const [quantity, setQuantity] = useState<number>(1);
+  const [isAdding, setIsAdding] = useState<boolean>(false);
+  const [reviewCount, setReviewCount] = useState<number>(0);
+
+  const isWishlisted = isInWishlist(product.id);
 
   // Selected variant
   const selectedVariant =
@@ -41,8 +55,8 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
     initialImage ? initialImage.url : null,
   );
 
-  // Active tab: 'specs' | 'desc'
-  const [activeTab, setActiveTab] = useState<'specs' | 'desc'>('specs');
+  // Active tab: 'specs' | 'desc' | 'reviews'
+  const [activeTab, setActiveTab] = useState<'specs' | 'desc' | 'reviews'>('specs');
 
   const discountPercent =
     selectedVariant.compareAtPrice && selectedVariant.compareAtPrice > selectedVariant.price
@@ -280,31 +294,91 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
             </div>
           )}
 
-          {/* Ordering Actions (Phase Boundaries Guard) */}
-          <div className="p-4 rounded-xl bg-muted/40 border border-border flex flex-col space-y-3">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Info className="size-4 text-primary shrink-0" />
-              <span>{t('detail.orderingComingSoonNotice')}</span>
-            </div>
+          {/* Ordering Actions */}
+          <div className="p-4 rounded-xl bg-muted/30 border border-border flex flex-col space-y-4">
+            {/* Quantity Stepper if in stock */}
+            {!selectedVariant.isOutOfStock && (
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold text-foreground">Quantity:</span>
+                <div className="flex items-center border border-border rounded-lg bg-background">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    disabled={quantity <= 1 || isAdding}
+                    className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-l-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    aria-label="Decrease quantity"
+                  >
+                    <span className="text-sm font-bold px-1">−</span>
+                  </button>
+                  <span className="px-3 text-xs font-bold text-foreground min-w-[32px] text-center">
+                    {quantity}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setQuantity((q) => Math.min(selectedVariant.availableStock || 99, q + 1))
+                    }
+                    disabled={quantity >= (selectedVariant.availableStock || 99) || isAdding}
+                    className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-r-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    aria-label="Increase quantity"
+                  >
+                    <span className="text-sm font-bold px-1">+</span>
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-3">
               <Button
-                disabled
                 size="lg"
                 variant="default"
-                className="flex-1 flex items-center justify-center gap-2 cursor-not-allowed opacity-75 font-semibold text-sm"
+                disabled={selectedVariant.isOutOfStock || isAdding}
+                onClick={async () => {
+                  if (!selectedVariant || selectedVariant.isOutOfStock) return;
+                  setIsAdding(true);
+                  try {
+                    await addToCart(selectedVariant.id, quantity);
+                  } finally {
+                    setIsAdding(false);
+                  }
+                }}
+                className="flex-1 flex items-center justify-center gap-2 font-semibold text-sm cursor-pointer shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <ShoppingCart className="size-4" />
-                <span>{t('detail.addToCart')}</span>
+                <span>
+                  {isAdding
+                    ? 'Adding...'
+                    : selectedVariant.isOutOfStock
+                      ? t('listing.outOfStock')
+                      : t('detail.addToCart')}
+                </span>
               </Button>
               <Button
                 disabled
                 size="lg"
                 variant="secondary"
                 className="flex-1 flex items-center justify-center gap-2 cursor-not-allowed opacity-75 font-semibold text-sm"
+                title={t('detail.buyNowDisabled')}
               >
                 <Zap className="size-4" />
                 <span>{t('detail.buyNow')}</span>
+              </Button>
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                onClick={() => void toggleWishlist(product.id)}
+                title={isWishlisted ? tWishlist('removeFromWishlist') : tWishlist('addToWishlist')}
+                aria-label={
+                  isWishlisted ? tWishlist('removeFromWishlist') : tWishlist('addToWishlist')
+                }
+                className="size-11 p-0 shrink-0 border-border hover:bg-muted/50"
+              >
+                <Heart
+                  className={`size-5 transition-colors ${
+                    isWishlisted ? 'fill-rose-500 text-rose-500' : 'text-muted-foreground'
+                  }`}
+                />
               </Button>
             </div>
           </div>
@@ -376,6 +450,18 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
           >
             {t('detail.descriptionTab')}
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('reviews')}
+            className={`px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'reviews'
+                ? 'border-primary text-primary bg-background'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <MessageSquare className="size-4" />
+            <span>{tReviews('tabTitle', { count: reviewCount })}</span>
+          </button>
         </div>
 
         {/* Tab Content */}
@@ -429,6 +515,13 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
                 </p>
               )}
             </div>
+          )}
+
+          {activeTab === 'reviews' && (
+            <ProductReviewsSection
+              productSlug={product.slug}
+              onReviewCountChange={setReviewCount}
+            />
           )}
         </div>
       </div>

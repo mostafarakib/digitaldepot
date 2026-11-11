@@ -23,8 +23,10 @@ import {
   clearOAuthStateCookie,
   setOAuthLinkCookie,
   clearOAuthLinkCookie,
+  clearGuestCartCookie,
   COOKIE_NAMES,
 } from '../../lib/cookies.js';
+import { cartService } from '../cart/cart.service.js';
 import { rotateCsrfToken } from '../../middleware/csrf.js';
 import {
   BadRequestError,
@@ -89,6 +91,20 @@ export class AuthController {
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
     });
+
+    // Safely attempt guest cart merging if a guest cart cookie is present
+    const rawGuestCartToken = req.cookies?.[COOKIE_NAMES.GUEST_CART];
+    if (rawGuestCartToken && typeof rawGuestCartToken === 'string') {
+      try {
+        await cartService.mergeGuestCart(result.user.id, rawGuestCartToken);
+        clearGuestCartCookie(res);
+      } catch (err) {
+        logger.error(
+          { err: err instanceof Error ? err.message : err, userId: result.user.id },
+          'Guest cart merging failed during login; preserving guest cookie for retry',
+        );
+      }
+    }
 
     const csrfToken = rotateCsrfToken(res);
 
@@ -543,6 +559,21 @@ export class AuthController {
         accessToken: outcome.accessToken,
         refreshToken: outcome.refreshToken,
       });
+
+      // Safely attempt guest cart merging if a guest cart cookie is present
+      const rawGuestCartToken = req.cookies?.[COOKIE_NAMES.GUEST_CART];
+      if (rawGuestCartToken && typeof rawGuestCartToken === 'string') {
+        try {
+          await cartService.mergeGuestCart(outcome.user.id, rawGuestCartToken);
+          clearGuestCartCookie(res);
+        } catch (err) {
+          logger.error(
+            { err: err instanceof Error ? err.message : err, userId: outcome.user.id },
+            'Guest cart merging failed during Google OAuth authentication; preserving guest cookie for retry',
+          );
+        }
+      }
+
       rotateCsrfToken(res);
 
       res.json({

@@ -20,6 +20,8 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useWishlist } from '@/components/storefront/wishlist/wishlist-provider';
+import { useCart } from '@/components/storefront/cart/cart-provider';
 
 interface MobileNavProps {
   isOpen: boolean;
@@ -29,6 +31,9 @@ interface MobileNavProps {
 export function MobileNav({ isOpen, onClose }: MobileNavProps) {
   const tCommon = useTranslations('common');
   const tNav = useTranslations('nav');
+  const { itemCount: wishlistCount } = useWishlist();
+  const { cart, openDrawer } = useCart();
+  const cartCount = cart?.totalQuantity ?? 0;
 
   const categories = [
     { id: 'smartphones', label: tNav('smartphones'), icon: Smartphone },
@@ -60,21 +65,32 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
           <span>{tNav('allCategories')}</span>
         </button>
 
-        <div className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 relative cursor-pointer">
+        <Link
+          href="/wishlist"
+          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 relative cursor-pointer"
+        >
           <Heart className="size-5" />
-          <span className="absolute top-1 right-5 size-3.5 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center">
-            0
-          </span>
+          {wishlistCount > 0 && (
+            <span className="absolute top-1 right-5 size-3.5 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center">
+              {wishlistCount > 99 ? '99+' : wishlistCount}
+            </span>
+          )}
           <span>{tCommon('wishlist')}</span>
-        </div>
+        </Link>
 
-        <div className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 relative cursor-pointer">
+        <button
+          type="button"
+          onClick={openDrawer}
+          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 relative cursor-pointer"
+        >
           <ShoppingCart className="size-5 text-primary" />
-          <span className="absolute top-1 right-5 size-3.5 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center">
-            0
-          </span>
+          {cartCount > 0 && (
+            <span className="absolute top-1 right-5 size-3.5 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center">
+              {cartCount > 99 ? '99+' : cartCount}
+            </span>
+          )}
           <span className="text-primary font-medium">{tCommon('cart')}</span>
-        </div>
+        </button>
 
         <Link
           href="/account"
