@@ -99,20 +99,27 @@ describe('Phase 6D: Verified-Purchase Review Integration API', () => {
     userId: string,
     variantId: string,
     status: 'PENDING' | 'CONFIRMED' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED',
+    quantity = 1,
   ) {
-    const address = await prisma.address.create({
-      data: {
-        userId,
-        recipientName: 'Rahim Chowdhury',
-        phone: '+8801700000001',
-        divisionId: 'DHAKA',
-        districtId: 'DHAKA',
-        upazila: 'Dhanmondi',
-        streetAddress: 'House 1, Road 2',
-        postalCode: '1205',
-        isDefault: true,
-      },
+    let address = await prisma.address.findFirst({
+      where: { userId },
     });
+
+    if (!address) {
+      address = await prisma.address.create({
+        data: {
+          userId,
+          recipientName: 'Rahim Chowdhury',
+          phone: '+8801700000001',
+          divisionId: 'DHAKA',
+          districtId: 'DHAKA',
+          upazila: 'Dhanmondi',
+          streetAddress: 'House 1, Road 2',
+          postalCode: '1205',
+          isDefault: true,
+        },
+      });
+    }
 
     const variant = await prisma.productVariant.findUniqueOrThrow({
       where: { id: variantId },
@@ -124,12 +131,12 @@ describe('Phase 6D: Verified-Purchase Review Integration API', () => {
       create: {
         userId,
         items: {
-          create: { variantId, quantity: 1, unitPriceAtAdd: variant.price },
+          create: { variantId, quantity, unitPriceAtAdd: variant.price },
         },
       },
       update: {
         items: {
-          create: { variantId, quantity: 1, unitPriceAtAdd: variant.price },
+          create: { variantId, quantity, unitPriceAtAdd: variant.price },
         },
       },
     });
@@ -148,7 +155,59 @@ describe('Phase 6D: Verified-Purchase Review Integration API', () => {
       });
     }
 
-    return order;
+    const fullOrder = await prisma.order.findUniqueOrThrow({
+      where: { id: order.id },
+      include: { items: true },
+    });
+
+    return fullOrder;
+  }
+
+  async function createReturnForOrder(params: {
+    orderId: string;
+    userId: string;
+    orderItemId: string;
+    quantity: number;
+    status: 'REQUESTED' | 'APPROVED' | 'RECEIVED' | 'COMPLETED' | 'REJECTED' | 'CANCELLED';
+  }) {
+    const returnNumber = `RET-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
+    return await prisma.returnRequest.create({
+      data: {
+        returnNumber,
+        orderId: params.orderId,
+        userId: params.userId,
+        status: params.status,
+        customerReason: 'Defective item',
+        estimatedRefundAmount: params.quantity * 50000,
+        actualRefundAmount: params.status === 'COMPLETED' ? params.quantity * 50000 : null,
+        items: {
+          create: {
+            orderItemId: params.orderItemId,
+            quantity: params.quantity,
+            reason: 'Defective item',
+            condition:
+              params.status === 'RECEIVED' || params.status === 'COMPLETED' ? 'GOOD' : null,
+          },
+        },
+        statusHistory: {
+          create: [
+            { fromStatus: null, toStatus: 'REQUESTED', reason: 'Customer requested' },
+            ...(params.status !== 'REQUESTED'
+              ? [
+                  {
+                    fromStatus: 'REQUESTED' as const,
+                    toStatus: params.status,
+                    reason: 'Transitioned',
+                  },
+                ]
+              : []),
+          ],
+        },
+      },
+      include: {
+        items: true,
+      },
+    });
   }
 
   it('marks review as isVerifiedPurchase: true when customer has an eligible DELIVERED order for the product', async () => {
@@ -315,5 +374,348 @@ describe('Phase 6D: Verified-Purchase Review Integration API', () => {
     expect(txSpy).toHaveBeenCalled();
 
     txSpy.mockRestore();
+  });
+
+  // -------------------------------------------------------------------------
+  // Phase 7E: Return & Refund Review Eligibility Integration Tests
+  // -------------------------------------------------------------------------
+  describe('Phase 7E: Return & Refund Review Eligibility Integration', () => {
+    it('maintains isVerifiedPurchase: true when return is in progress (REQUESTED, APPROVED, or RECEIVED)', async () => {
+      const { user, customerCookie } = await createCustomer('in-progress-return@example.com');
+      const product = await createPublishedProduct();
+      const order = await createOrderForCustomer(user.id, product.variants[0].id, 'DELIVERED', 2);
+      const orderItem = order.items[0];
+
+      // 1. Return in REQUESTED status
+      const ret = await createReturnForOrder({
+        orderId: order.id,
+        userId: user.id,
+        orderItemId: orderItem.id,
+        quantity: 2,
+        status: 'REQUESTED',
+      });
+
+      const resRequested = await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 4,
+          comment: 'Return is requested, but purchased unit was delivered.',
+        });
+
+      expect(resRequested.status).toBe(201);
+      expect(resRequested.body.data.isVerifiedPurchase).toBe(true);
+
+      // 2. Return transitions to APPROVED
+      await prisma.returnRequest.update({
+        where: { id: ret.id },
+        data: { status: 'APPROVED' },
+      });
+
+      const resApproved = await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 4,
+          comment: 'Return is approved, updating feedback.',
+        });
+
+      expect(resApproved.status).toBe(201);
+      expect(resApproved.body.data.isVerifiedPurchase).toBe(true);
+
+      // 3. Return transitions to RECEIVED (inspected, but refund not finalized yet)
+      await prisma.returnRequest.update({
+        where: { id: ret.id },
+        data: { status: 'RECEIVED' },
+      });
+
+      const resReceived = await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 4,
+          comment: 'Return is received at warehouse, still not completed.',
+        });
+
+      expect(resReceived.status).toBe(201);
+      expect(resReceived.body.data.isVerifiedPurchase).toBe(true);
+    });
+
+    it('maintains isVerifiedPurchase: true when return was REJECTED or CANCELLED', async () => {
+      const { user, customerCookie } = await createCustomer('disapproved-return@example.com');
+      const product = await createPublishedProduct();
+      const order = await createOrderForCustomer(user.id, product.variants[0].id, 'DELIVERED', 2);
+      const orderItem = order.items[0];
+
+      // Return was REJECTED
+      await createReturnForOrder({
+        orderId: order.id,
+        userId: user.id,
+        orderItemId: orderItem.id,
+        quantity: 2,
+        status: 'REJECTED',
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 4,
+          comment: 'Return was rejected, customer retained items.',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.isVerifiedPurchase).toBe(true);
+    });
+
+    it('maintains isVerifiedPurchase: true when order item is partially returned (COMPLETED)', async () => {
+      const { user, customerCookie } = await createCustomer('partial-return@example.com');
+      const product = await createPublishedProduct();
+      // Bought 3 units
+      const order = await createOrderForCustomer(user.id, product.variants[0].id, 'DELIVERED', 3);
+      const orderItem = order.items[0];
+
+      // Completed return for 2 units (1 unit remains delivered and kept)
+      await createReturnForOrder({
+        orderId: order.id,
+        userId: user.id,
+        orderItemId: orderItem.id,
+        quantity: 2,
+        status: 'COMPLETED',
+      });
+
+      const res = await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 5,
+          comment: 'Returned 2 damaged units, kept 1 good unit. Still an authentic buyer!',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.isVerifiedPurchase).toBe(true);
+    });
+
+    it('sets isVerifiedPurchase: false when order item is fully returned (COMPLETED) without rejecting review submission', async () => {
+      const { user, customerCookie } = await createCustomer('full-return@example.com');
+      const product = await createPublishedProduct();
+      // Bought 2 units
+      const order = await createOrderForCustomer(user.id, product.variants[0].id, 'DELIVERED', 2);
+      const orderItem = order.items[0];
+
+      // Completed return for all 2 units
+      await createReturnForOrder({
+        orderId: order.id,
+        userId: user.id,
+        orderItemId: orderItem.id,
+        quantity: 2,
+        status: 'COMPLETED',
+      });
+
+      // Customer may still submit review, but it will be saved with isVerifiedPurchase = false
+      const res = await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 2,
+          comment: 'Returned all items because it was not suitable. Still able to leave review.',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.isVerifiedPurchase).toBe(false);
+
+      const dbReview = await prisma.productReview.findUniqueOrThrow({
+        where: {
+          userId_productId: {
+            userId: user.id,
+            productId: product.id,
+          },
+        },
+      });
+      expect(dbReview.isVerifiedPurchase).toBe(false);
+    });
+
+    it('sets isVerifiedPurchase: false when multiple COMPLETED returns accumulate to full item quantity', async () => {
+      const { user, customerCookie } = await createCustomer('multi-return@example.com');
+      const product = await createPublishedProduct();
+      // Bought 2 units
+      const order = await createOrderForCustomer(user.id, product.variants[0].id, 'DELIVERED', 2);
+      const orderItem = order.items[0];
+
+      // Return 1: 1 unit COMPLETED
+      await createReturnForOrder({
+        orderId: order.id,
+        userId: user.id,
+        orderItemId: orderItem.id,
+        quantity: 1,
+        status: 'COMPLETED',
+      });
+
+      // Submit review after first partial return -> 1 unit remains -> isVerifiedPurchase: true
+      const res1 = await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 4,
+          comment: 'Kept one unit, returned one.',
+        });
+      expect(res1.status).toBe(201);
+      expect(res1.body.data.isVerifiedPurchase).toBe(true);
+
+      // Return 2: second unit COMPLETED (net remaining = 0)
+      await createReturnForOrder({
+        orderId: order.id,
+        userId: user.id,
+        orderItemId: orderItem.id,
+        quantity: 1,
+        status: 'COMPLETED',
+      });
+
+      // Customer edits review after returning second unit -> isVerifiedPurchase becomes false
+      const res2 = await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 2,
+          comment: 'Eventually returned the second unit as well.',
+        });
+      expect(res2.status).toBe(201);
+      expect(res2.body.data.isVerifiedPurchase).toBe(false);
+    });
+
+    it('maintains isVerifiedPurchase: true across multiple orders when one is fully returned but another delivered order remains', async () => {
+      const { user, customerCookie } = await createCustomer('multi-order-buyer@example.com');
+      const product = await createPublishedProduct();
+
+      // Order 1: 1 unit delivered, fully returned COMPLETED (net = 0)
+      const order1 = await createOrderForCustomer(user.id, product.variants[0].id, 'DELIVERED', 1);
+      await createReturnForOrder({
+        orderId: order1.id,
+        userId: user.id,
+        orderItemId: order1.items[0].id,
+        quantity: 1,
+        status: 'COMPLETED',
+      });
+
+      // Order 2: 1 unit delivered, NOT returned (net = 1)
+      await createOrderForCustomer(user.id, product.variants[0].id, 'DELIVERED', 1);
+
+      const res = await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 5,
+          comment: 'First order was returned, but reordered and this one is fantastic!',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.isVerifiedPurchase).toBe(true);
+    });
+
+    it('preserves existing review verified status and moderation state upon return completion (no retroactive mutation)', async () => {
+      const { user, customerCookie } = await createCustomer('retroactive-invariant@example.com');
+      const product = await createPublishedProduct();
+      const order = await createOrderForCustomer(user.id, product.variants[0].id, 'DELIVERED', 1);
+
+      // Customer writes review while item is delivered and kept
+      const reviewRes = await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 5,
+          comment: 'Loved it initially!',
+        });
+      expect(reviewRes.status).toBe(201);
+      expect(reviewRes.body.data.isVerifiedPurchase).toBe(true);
+
+      // Admin moderates review to APPROVED
+      await prisma.productReview.update({
+        where: { id: reviewRes.body.data.id },
+        data: { status: 'APPROVED' },
+      });
+
+      // Now customer requests and completes full return
+      await createReturnForOrder({
+        orderId: order.id,
+        userId: user.id,
+        orderItemId: order.items[0].id,
+        quantity: 1,
+        status: 'COMPLETED',
+      });
+
+      // Verify that the existing review in database was NOT retroactively mutated
+      const dbReview = await prisma.productReview.findUniqueOrThrow({
+        where: { id: reviewRes.body.data.id },
+      });
+      expect(dbReview.isVerifiedPurchase).toBe(true);
+      expect(dbReview.status).toBe('APPROVED');
+    });
+
+    it('updates isVerifiedPurchase to false and reverts status to PENDING when customer edits review after full return', async () => {
+      const { user, customerCookie } = await createCustomer('edit-after-return@example.com');
+      const product = await createPublishedProduct();
+      const order = await createOrderForCustomer(user.id, product.variants[0].id, 'DELIVERED', 1);
+
+      // Initial review while delivered
+      await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 5,
+          comment: 'Loved it initially!',
+        });
+
+      // Full return completed
+      await createReturnForOrder({
+        orderId: order.id,
+        userId: user.id,
+        orderItemId: order.items[0].id,
+        quantity: 1,
+        status: 'COMPLETED',
+      });
+
+      // Customer edits review after return
+      const editRes = await request(app)
+        .post(`/api/v1/products/${product.slug}/reviews`)
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({
+          rating: 2,
+          comment: 'Broke after a week, returned for full refund.',
+        });
+
+      expect(editRes.status).toBe(201);
+      expect(editRes.body.data.isVerifiedPurchase).toBe(false);
+      expect(editRes.body.data.status).toBe('PENDING'); // Reverted to PENDING for moderation
+
+      const dbReview = await prisma.productReview.findUniqueOrThrow({
+        where: { id: editRes.body.data.id },
+      });
+      expect(dbReview.isVerifiedPurchase).toBe(false);
+      expect(dbReview.status).toBe('PENDING');
+    });
   });
 });

@@ -56,6 +56,10 @@ model User {
   orderStatusHistories OrderStatusHistory[]
   wishlistItems       WishlistItem[]
   productReviews      ProductReview[]
+  returnRequests      ReturnRequest[]
+  returnItemsInspected ReturnItem[]
+  refundsProcessed    Refund[]
+  returnStatusHistories ReturnStatusHistory[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -552,6 +556,7 @@ model Order {
   payments                 Payment[]
   statusHistory            OrderStatusHistory[]
   couponUsages             CouponUsage[]
+  returnRequests           ReturnRequest[]
 
   createdAt                DateTime             @default(now())
   updatedAt                DateTime             @updatedAt
@@ -582,6 +587,8 @@ model OrderItem {
   attributes   Json?           // Variant attributes snapshot
   thumbnailUrl String?
 
+  returnItems  ReturnItem[]
+
   createdAt    DateTime        @default(now())
 
   @@index([orderId])
@@ -603,6 +610,8 @@ model Payment {
   paidAt               DateTime?
   failedAt             DateTime?
   cancelledAt          DateTime?
+
+  refunds              Refund[]
 
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
@@ -626,6 +635,124 @@ model OrderStatusHistory {
   @@index([orderId, createdAt])
   @@index([changedByUserId])
 }
+
+enum ReturnRequestStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  RECEIVED
+  CANCELLED
+  COMPLETED
+}
+
+enum ReturnItemCondition {
+  GOOD
+  DAMAGED
+  OPENED_UNUSABLE
+}
+
+enum RefundStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum RefundMethod {
+  SSLCOMMERZ
+  COD_PAYOUT
+}
+
+model ReturnRequest {
+  id                    String              @id @default(cuid())
+  returnNumber          String              @unique // RET-YYYYMMDD-RANDOM8
+  orderId               String
+  order                 Order               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  userId                String
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status                ReturnRequestStatus @default(REQUESTED)
+  customerReason        String
+  customerNotes         String?
+  rejectionReason       String?
+  estimatedRefundAmount Int                 // Customer-facing estimate in BDT poisha
+  actualRefundAmount    Int?                // Admin approved final refund in BDT poisha
+  shippingFeeRefunded   Boolean             @default(false)
+  shippingRefundReason  String?
+  items                 ReturnItem[]
+  refunds               Refund[]
+  statusHistory         ReturnStatusHistory[]
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@index([orderId])
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model ReturnItem {
+  id                  String               @id @default(cuid())
+  returnRequestId     String
+  returnRequest       ReturnRequest        @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
+  orderItemId         String
+  orderItem           OrderItem            @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  quantity            Int
+  reason              String
+  condition           ReturnItemCondition? // Set on inspection (GOOD, DAMAGED, OPENED_UNUSABLE)
+  restockedQuantity   Int                  @default(0)
+  inspectionNotes     String?
+  inspectedAt         DateTime?
+  inspectedByUserId   String?
+  inspectedByUser     User?                @relation(fields: [inspectedByUserId], references: [id], onDelete: SetNull)
+  createdAt           DateTime             @default(now())
+
+  @@index([returnRequestId])
+  @@index([orderItemId])
+  @@index([inspectedByUserId])
+}
+
+model Refund {
+  id                   String        @id @default(cuid())
+  refundNumber         String        @unique // REF-YYYYMMDD-RANDOM8
+  returnRequestId      String
+  returnRequest        ReturnRequest @relation(fields: [returnRequestId], references: [id], onDelete: Restrict)
+  paymentId            String
+  payment              Payment       @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  amount               Int           // Total refund amount in integer BDT poisha (= merchandiseAmount + shippingAmount)
+  merchandiseAmount    Int           // Merchandise refund in integer BDT poisha
+  shippingAmount       Int           @default(0) // Shipping refund in integer BDT poisha
+  method               RefundMethod
+  status               RefundStatus  @default(PENDING)
+  gatewayReference     String?       // SSLCommerz refund ref / bank_tran_id
+  payoutReference      String?       // COD MFS/Cash transaction ID
+  payoutChannel        String?       // BKASH, NAGAD, BANK_TRANSFER, CASH
+  gatewayResponse      Json?
+  failureReason        String?
+  processedByUserId    String?
+  processedByUser      User?         @relation(fields: [processedByUserId], references: [id], onDelete: SetNull)
+  processedAt          DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([returnRequestId])
+  @@index([paymentId])
+  @@index([status])
+  @@index([processedByUserId])
+}
+
+model ReturnStatusHistory {
+  id                  String               @id @default(cuid())
+  returnRequestId     String
+  returnRequest       ReturnRequest        @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
+  fromStatus          ReturnRequestStatus?
+  toStatus            ReturnRequestStatus
+  reason              String?
+  changedByUserId     String?
+  changedByUser       User?                @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+  createdAt           DateTime             @default(now())
+
+  @@index([returnRequestId, createdAt])
+  @@index([changedByUserId])
+}
+
 
 
 

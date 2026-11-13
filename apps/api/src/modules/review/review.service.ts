@@ -204,15 +204,22 @@ export class ReviewService {
   }
 
   /**
-   * Checks whether the customer has completed a delivered purchase for this product.
-   * Only DELIVERED orders containing an item matching productId qualify.
+   * Checks whether the customer has completed a delivered purchase for this product,
+   * accounting for completed returns.
+   *
+   * Rules (Phase 7E):
+   * 1. Only DELIVERED orders containing items matching productId qualify.
+   * 2. Delivered quantity is reduced only by quantities in COMPLETED returns.
+   * 3. REQUESTED, APPROVED, RECEIVED, REJECTED, and CANCELLED returns do not reduce eligibility.
+   * 4. Partially returned items still qualify if net delivered quantity > 0.
+   * 5. Fully returned items (net delivered quantity = 0) do not qualify.
    */
   async checkVerifiedPurchaseEligibility(
     userId: string,
     productId: string,
     tx: Prisma.TransactionClient | typeof prisma = prisma,
   ): Promise<boolean> {
-    const deliveredCount = await tx.orderItem.count({
+    const deliveredItems = await tx.orderItem.findMany({
       where: {
         productId,
         order: {
@@ -220,20 +227,59 @@ export class ReviewService {
           status: 'DELIVERED',
         },
       },
+      select: {
+        id: true,
+        quantity: true,
+        returnItems: {
+          where: {
+            returnRequest: {
+              status: 'COMPLETED',
+            },
+          },
+          select: {
+            quantity: true,
+          },
+        },
+      },
     });
 
-    return deliveredCount > 0;
+    if (deliveredItems.length === 0) {
+      return false;
+    }
+
+    let netDeliveredQuantity = 0;
+    for (const item of deliveredItems) {
+      const completedReturnedQty = item.returnItems.reduce((sum, r) => sum + r.quantity, 0);
+      const remainingItemQty = Math.max(0, item.quantity - completedReturnedQty);
+      netDeliveredQuantity += remainingItemQty;
+    }
+
+    return netDeliveredQuantity > 0;
   }
 
   /**
    * Submits a customer review for a published product.
    * If existing review exists, updates it and REVERTS status to PENDING for re-moderation.
    * Executes within a transaction to ensure eligibility verification concurrency.
+   * Locks delivered Order rows (FOR SHARE OF o) ordered deterministically by o.id ASC.
    */
   async submitReview(userId: string, slug: string, input: CreateReviewInput) {
     const product = await validateStorefrontVisibility(slug);
 
     return await prisma.$transaction(async (tx) => {
+      // Lock delivered Order rows for this user and product in deterministic order.
+      // Use FOR SHARE OF o to lock only Order rows (Phase 7E).
+      await tx.$queryRaw`
+        SELECT o.id
+        FROM "Order" o
+        JOIN "OrderItem" oi ON oi."orderId" = o.id
+        WHERE o."userId" = ${userId}
+          AND o.status = 'DELIVERED'
+          AND oi."productId" = ${product.id}
+        ORDER BY o.id ASC
+        FOR SHARE OF o
+      `;
+
       const isVerifiedPurchase = await this.checkVerifiedPurchaseEligibility(
         userId,
         product.id,

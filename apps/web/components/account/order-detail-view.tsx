@@ -10,6 +10,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { CancelOrderDialog } from './cancel-order-dialog';
+import { RequestReturnDialog } from './request-return-dialog';
+import { getReturnEligibilityApi } from '@/lib/api-client';
+import type { CustomerReturnEligibilityResponse } from '@/lib/order-types';
 import {
   Package,
   Calendar,
@@ -26,6 +29,7 @@ import {
   ShieldCheck,
   AlertTriangle,
   History,
+  RotateCcw,
 } from 'lucide-react';
 
 interface OrderDetailViewProps {
@@ -36,12 +40,16 @@ const ORDER_STEPS: OrderStatus[] = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPP
 
 export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
   const t = useTranslations('orders');
+  const tReturns = useTranslations('returns');
   const router = useRouter();
 
   const [order, setOrder] = useState<CustomerOrderDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [returnEligibility, setReturnEligibility] =
+    useState<CustomerReturnEligibilityResponse | null>(null);
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
 
   const fetchOrder = useCallback(() => {
     setIsLoading(true);
@@ -50,6 +58,11 @@ export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
       .then((res) => {
         setOrder(res.order);
         setIsLoading(false);
+        if (res.order.status === 'DELIVERED' && res.order.paymentStatus === 'PAID') {
+          getReturnEligibilityApi(orderNumber)
+            .then(setReturnEligibility)
+            .catch(() => {});
+        }
       })
       .catch((err) => {
         if (err instanceof ApiError) {
@@ -69,6 +82,13 @@ export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
         if (!ignore) {
           setOrder(res.order);
           setIsLoading(false);
+          if (res.order.status === 'DELIVERED' && res.order.paymentStatus === 'PAID') {
+            getReturnEligibilityApi(orderNumber)
+              .then((elig) => {
+                if (!ignore) setReturnEligibility(elig);
+              })
+              .catch(() => {});
+          }
         }
       })
       .catch((err) => {
@@ -205,17 +225,35 @@ export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
           </Link>
         </Button>
 
-        {order.canCancel && (
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            onClick={() => setIsCancelModalOpen(true)}
-            className="self-start text-xs"
-          >
-            {t('cancelOrder')}
-          </Button>
-        )}
+        <div className="flex items-center gap-2 self-start">
+          {order.canCancel && (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={() => setIsCancelModalOpen(true)}
+              className="text-xs"
+            >
+              {t('cancelOrder')}
+            </Button>
+          )}
+
+          {returnEligibility?.isEligible && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsReturnModalOpen(true)}
+              className="text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/5"
+            >
+              <RotateCcw className="size-3.5" />
+              <span>{tReturns('requestReturn')}</span>
+              <span className="ml-1 text-[10px] bg-primary/10 px-1.5 py-0.5 rounded-full font-medium">
+                {tReturns('returnWindowNotice', { days: returnEligibility.daysRemaining })}
+              </span>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Order Title Header */}
@@ -509,6 +547,21 @@ export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
           isOpen={isCancelModalOpen}
           onClose={() => setIsCancelModalOpen(false)}
           onSuccess={fetchOrder}
+        />
+      )}
+
+      {/* Return Request Dialog */}
+      {isReturnModalOpen && (
+        <RequestReturnDialog
+          orderNumber={order.orderNumber}
+          isOpen={isReturnModalOpen}
+          onClose={() => setIsReturnModalOpen(false)}
+          onSuccess={() => {
+            fetchOrder();
+            getReturnEligibilityApi(order.orderNumber)
+              .then(setReturnEligibility)
+              .catch(() => {});
+          }}
         />
       )}
     </div>

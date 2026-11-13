@@ -6,7 +6,12 @@ import cartRouter from '../modules/cart/cart.routes.js';
 import wishlistRouter from '../modules/wishlist/wishlist.routes.js';
 import checkoutRouter from '../modules/checkout/checkout.routes.js';
 import paymentRouter from '../modules/payment/payment.routes.js';
-import { orderRouter, adminOrderRouter } from '../modules/order/index.js';
+import {
+  orderRouter,
+  adminOrderRouter,
+  customerReturnRouter,
+  adminReturnRouter,
+} from '../modules/order/index.js';
 import { productReviewRouter, adminReviewRouter } from '../modules/review/review.routes.js';
 import {
   publicCategoryRouter,
@@ -38,6 +43,7 @@ router.use('/wishlist', wishlistRouter);
 router.use('/checkout', checkoutRouter);
 router.use('/payments', paymentRouter);
 router.use('/orders', orderRouter);
+router.use('/customer/returns', customerReturnRouter);
 
 // Admin catalogue management routes
 router.use('/admin/categories', adminCategoryRouter);
@@ -50,5 +56,6 @@ router.use('/admin/inventory', adminInventoryRouter);
 router.use('/admin/coupons', adminCouponRouter);
 router.use('/admin/reviews', adminReviewRouter);
 router.use('/admin/orders', adminOrderRouter);
+router.use('/admin/returns', adminReturnRouter);
 
 export default router;

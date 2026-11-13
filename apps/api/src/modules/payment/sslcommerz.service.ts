@@ -29,6 +29,21 @@ export interface ValidateOrderResult {
   raw: Record<string, unknown>;
 }
 
+export interface SslcommerzRefundParams {
+  bankTranId: string;
+  refundAmount: number; // in integer BDT poisha
+  refundRemarks: string;
+  refundRefId: string; // our internal refundNumber
+}
+
+export interface SslcommerzRefundResult {
+  status: 'SUCCESS' | 'FAILED' | 'AMBIGUOUS';
+  refundRefId?: string;
+  transId?: string;
+  errorReason?: string;
+  raw: Record<string, unknown>;
+}
+
 export class SslcommerzService {
   private getBaseUrl(): string {
     return env.SSLCOMMERZ_IS_SANDBOX
@@ -192,6 +207,182 @@ export class SslcommerzService {
       card_type: data.card_type ? String(data.card_type) : undefined,
       card_brand: data.card_brand ? String(data.card_brand) : undefined,
       tran_date: data.tran_date ? String(data.tran_date) : undefined,
+      raw: data,
+    };
+  }
+
+  /**
+   * Initiates a refund request with SSLCommerz gateway for an online payment.
+   * Runs strictly outside database transactions.
+   */
+  async initiateRefund(params: SslcommerzRefundParams): Promise<SslcommerzRefundResult> {
+    const { bankTranId, refundAmount, refundRemarks, refundRefId } = params;
+    const baseUrl = this.getBaseUrl();
+    const endpoint = `${baseUrl}/validator/api/merchantTransIDvalidationAPI.php`;
+
+    const decimalAmount = (refundAmount / 100).toFixed(2);
+    const query = new URLSearchParams({
+      refund_amount: decimalAmount,
+      refund_remarks: refundRemarks || `Refund ${refundRefId}`,
+      bank_tran_id: bankTranId,
+      refe_id: refundRefId,
+      store_id: env.SSLCOMMERZ_STORE_ID,
+      store_passwd: env.SSLCOMMERZ_STORE_PASSWORD,
+      v: '1',
+      format: 'json',
+    });
+
+    logger.info(
+      { bankTranId, refundRefId, decimalAmount },
+      'Calling SSLCommerz merchantTransIDvalidationAPI for refund initiation',
+    );
+
+    let res: Response;
+    try {
+      res = await fetch(`${endpoint}?${query.toString()}`, { method: 'GET' });
+    } catch (networkError) {
+      logger.error(
+        { err: networkError, refundRefId, bankTranId },
+        'SSLCommerz refund initiation network error (ambiguous outcome)',
+      );
+      return {
+        status: 'AMBIGUOUS',
+        errorReason: networkError instanceof Error ? networkError.message : 'Network timeout/error',
+        raw: {},
+      };
+    }
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      logger.error(
+        { status: res.status, text, refundRefId, bankTranId },
+        'SSLCommerz refund initiation returned non-200 (ambiguous outcome)',
+      );
+      return {
+        status: 'AMBIGUOUS',
+        errorReason: `SSLCommerz HTTP ${res.status}: ${text}`,
+        raw: { httpStatus: res.status, text },
+      };
+    }
+
+    let data: Record<string, unknown>;
+    try {
+      data = (await res.json()) as Record<string, unknown>;
+    } catch {
+      const text = await res.text().catch(() => '');
+      return {
+        status: 'AMBIGUOUS',
+        errorReason: `SSLCommerz returned non-JSON response: ${text}`,
+        raw: { text },
+      };
+    }
+
+    const gatewayStatus = String(data.status || '').toLowerCase();
+    if (gatewayStatus === 'success') {
+      return {
+        status: 'SUCCESS',
+        refundRefId: data.refund_ref_id ? String(data.refund_ref_id) : refundRefId,
+        transId: data.trans_id ? String(data.trans_id) : undefined,
+        raw: data,
+      };
+    }
+
+    if (gatewayStatus === 'failed' || gatewayStatus === 'cancelled') {
+      const reason = String(data.errorReason || data.failedreason || 'Gateway rejected refund');
+      return {
+        status: 'FAILED',
+        errorReason: reason,
+        raw: data,
+      };
+    }
+
+    // Any other or pending status from gateway is ambiguous
+    return {
+      status: 'AMBIGUOUS',
+      errorReason: String(data.errorReason || data.status || 'Ambiguous gateway refund status'),
+      refundRefId: data.refund_ref_id ? String(data.refund_ref_id) : undefined,
+      raw: data,
+    };
+  }
+
+  /**
+   * Queries the definitive status of an in-flight refund attempt with SSLCommerz.
+   * Runs strictly outside database transactions.
+   */
+  async queryRefundStatus(refundRefId: string): Promise<SslcommerzRefundResult> {
+    const baseUrl = this.getBaseUrl();
+    const endpoint = `${baseUrl}/validator/api/merchantTransIDvalidationAPI.php`;
+
+    const query = new URLSearchParams({
+      refund_ref_id: refundRefId,
+      store_id: env.SSLCOMMERZ_STORE_ID,
+      store_passwd: env.SSLCOMMERZ_STORE_PASSWORD,
+      v: '1',
+      format: 'json',
+    });
+
+    logger.info({ refundRefId }, 'Querying SSLCommerz refund status');
+
+    let res: Response;
+    try {
+      res = await fetch(`${endpoint}?${query.toString()}`, { method: 'GET' });
+    } catch (networkError) {
+      logger.error(
+        { err: networkError, refundRefId },
+        'SSLCommerz refund status query network error (ambiguous)',
+      );
+      return {
+        status: 'AMBIGUOUS',
+        errorReason: networkError instanceof Error ? networkError.message : 'Network error',
+        raw: {},
+      };
+    }
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      return {
+        status: 'AMBIGUOUS',
+        errorReason: `SSLCommerz HTTP ${res.status}: ${text}`,
+        raw: { httpStatus: res.status, text },
+      };
+    }
+
+    let data: Record<string, unknown>;
+    try {
+      data = (await res.json()) as Record<string, unknown>;
+    } catch {
+      return {
+        status: 'AMBIGUOUS',
+        errorReason: 'SSLCommerz query returned non-JSON response',
+        raw: {},
+      };
+    }
+
+    const gatewayStatus = String(data.status || '').toLowerCase();
+    if (gatewayStatus === 'success') {
+      return {
+        status: 'SUCCESS',
+        refundRefId: data.refund_ref_id ? String(data.refund_ref_id) : refundRefId,
+        transId: data.trans_id ? String(data.trans_id) : undefined,
+        raw: data,
+      };
+    }
+
+    if (gatewayStatus === 'failed' || gatewayStatus === 'cancelled') {
+      return {
+        status: 'FAILED',
+        errorReason: String(
+          data.errorReason || data.failedreason || 'Gateway confirmed refund failed',
+        ),
+        raw: data,
+      };
+    }
+
+    return {
+      status: 'AMBIGUOUS',
+      errorReason: String(
+        data.errorReason || data.status || 'Status remains processing or ambiguous',
+      ),
       raw: data,
     };
   }

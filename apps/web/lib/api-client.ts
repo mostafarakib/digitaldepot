@@ -38,6 +38,20 @@ import type {
   UpdateOrderStatusInput,
   CancelAdminOrderInput,
   MarkCodPaidInput,
+  CustomerReturnEligibilityResponse,
+  CreateReturnInput,
+  CustomerReturnListResponse,
+  CustomerReturnDetailResponse,
+  AdminReturnListResponse,
+  AdminReturnDetailResponse,
+  AdminReturnListQuery,
+  AdminApproveReturnInput,
+  AdminRejectReturnInput,
+  AdminInspectReturnInput,
+  AdminRefundPreviewResponse,
+  AdminProcessRefundInput,
+  AdminProcessRefundResponse,
+  AdminReconcileRefundResponse,
 } from './order-types';
 
 export class ApiError extends Error {
@@ -858,6 +872,69 @@ export async function cancelCustomerOrderApi(
 }
 
 // -------------------------------------------------------------
+// Phase 7: Customer Returns API Client
+// -------------------------------------------------------------
+
+export async function getReturnEligibilityApi(
+  orderNumber: string,
+): Promise<CustomerReturnEligibilityResponse> {
+  return apiClient<CustomerReturnEligibilityResponse>(
+    `/api/account/orders/${encodeURIComponent(orderNumber)}/return-eligibility`,
+  );
+}
+
+export async function createReturnRequestApi(
+  orderNumber: string,
+  input: CreateReturnInput,
+): Promise<CustomerReturnDetailResponse> {
+  return apiClient<CustomerReturnDetailResponse>(
+    `/api/account/orders/${encodeURIComponent(orderNumber)}/returns`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+export async function getCustomerReturnsApi(query?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+}): Promise<CustomerReturnListResponse> {
+  const params = new URLSearchParams();
+  if (query?.page) params.set('page', String(query.page));
+  if (query?.limit) params.set('limit', String(query.limit));
+  if (query?.status) params.set('status', query.status);
+  const qs = params.toString();
+  return apiClient<CustomerReturnListResponse>(
+    qs ? `/api/account/returns?${qs}` : '/api/account/returns',
+  );
+}
+
+export async function getCustomerReturnDetailApi(
+  returnNumber: string,
+): Promise<CustomerReturnDetailResponse> {
+  return apiClient<CustomerReturnDetailResponse>(
+    `/api/account/returns/${encodeURIComponent(returnNumber)}`,
+  );
+}
+
+export async function cancelCustomerReturnApi(
+  returnNumber: string,
+  reason?: string,
+): Promise<CustomerReturnDetailResponse> {
+  return apiClient<CustomerReturnDetailResponse>(
+    `/api/account/returns/${encodeURIComponent(returnNumber)}/cancel`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ reason }),
+    },
+  );
+}
+
+// -------------------------------------------------------------
 // Admin Order Management Client Methods (Phase 6E)
 // -------------------------------------------------------------
 
@@ -911,6 +988,116 @@ export async function markAdminCodPaidApi(
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(input),
+    },
+  );
+}
+
+// -------------------------------------------------------------
+// Admin Return Management Client Methods (Phase 7C)
+// -------------------------------------------------------------
+
+export async function getAdminReturnsApi(
+  query?: AdminReturnListQuery,
+): Promise<AdminReturnListResponse> {
+  const params = new URLSearchParams();
+  if (query?.page) params.set('page', String(query.page));
+  if (query?.limit) params.set('limit', String(query.limit));
+  if (query?.status) params.set('status', query.status);
+  if (query?.orderNumber) params.set('orderNumber', query.orderNumber);
+  if (query?.returnNumber) params.set('returnNumber', query.returnNumber);
+  if (query?.startDate) params.set('startDate', query.startDate);
+  if (query?.endDate) params.set('endDate', query.endDate);
+  if (query?.sortBy) params.set('sortBy', query.sortBy);
+
+  const qs = params.toString();
+  return apiClient<AdminReturnListResponse>(qs ? `/api/admin/returns?${qs}` : '/api/admin/returns');
+}
+
+export async function getAdminReturnDetailApi(
+  returnNumber: string,
+): Promise<AdminReturnDetailResponse> {
+  return apiClient<AdminReturnDetailResponse>(
+    `/api/admin/returns/${encodeURIComponent(returnNumber)}`,
+  );
+}
+
+export async function approveAdminReturnApi(
+  returnNumber: string,
+  payload?: AdminApproveReturnInput,
+): Promise<AdminReturnDetailResponse> {
+  return apiClient<AdminReturnDetailResponse>(
+    `/api/admin/returns/${encodeURIComponent(returnNumber)}/approve`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload ?? {}),
+    },
+  );
+}
+
+export async function rejectAdminReturnApi(
+  returnNumber: string,
+  payload: AdminRejectReturnInput,
+): Promise<AdminReturnDetailResponse> {
+  return apiClient<AdminReturnDetailResponse>(
+    `/api/admin/returns/${encodeURIComponent(returnNumber)}/reject`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function inspectAdminReturnApi(
+  returnNumber: string,
+  payload: AdminInspectReturnInput,
+): Promise<AdminReturnDetailResponse> {
+  return apiClient<AdminReturnDetailResponse>(
+    `/api/admin/returns/${encodeURIComponent(returnNumber)}/inspect`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+// -------------------------------------------------------------
+// Admin Refund Processing Client Methods (Phase 7D)
+// -------------------------------------------------------------
+
+export async function getAdminReturnRefundPreviewApi(
+  returnNumber: string,
+): Promise<AdminRefundPreviewResponse> {
+  return apiClient<AdminRefundPreviewResponse>(
+    `/api/admin/returns/${encodeURIComponent(returnNumber)}/refund-preview`,
+  );
+}
+
+export async function processAdminReturnRefundApi(
+  returnNumber: string,
+  payload: AdminProcessRefundInput,
+): Promise<AdminProcessRefundResponse> {
+  return apiClient<AdminProcessRefundResponse>(
+    `/api/admin/returns/${encodeURIComponent(returnNumber)}/refund`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function reconcileAdminReturnRefundApi(
+  returnNumber: string,
+): Promise<AdminReconcileRefundResponse> {
+  return apiClient<AdminReconcileRefundResponse>(
+    `/api/admin/returns/${encodeURIComponent(returnNumber)}/refund/reconcile`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
     },
   );
 }

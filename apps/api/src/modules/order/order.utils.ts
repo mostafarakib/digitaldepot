@@ -4,6 +4,10 @@ import {
   ORDER_NUMBER_RANDOM_LENGTH,
   TRANSACTION_ID_PREFIX,
   TRANSACTION_ID_RANDOM_LENGTH,
+  RETURN_NUMBER_PREFIX,
+  RETURN_NUMBER_RANDOM_LENGTH,
+  REFUND_NUMBER_PREFIX,
+  REFUND_NUMBER_RANDOM_LENGTH,
 } from './order.constants.js';
 
 const ALPHANUMERIC_CHARS = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -53,4 +57,30 @@ export function generateTransactionId(
   const datePart = formatDatePart(date);
   const randomPart = generateRandomAlphanumeric(randomLength);
   return `${TRANSACTION_ID_PREFIX}-${datePart}-${randomPart}`;
+}
+
+/**
+ * Generates an authoritative unique return number.
+ * Format: RET-YYYYMMDD-RANDOM8 (e.g. RET-20261113-9A7B3C2D)
+ */
+export function generateReturnNumber(
+  date = new Date(),
+  randomLength = RETURN_NUMBER_RANDOM_LENGTH,
+): string {
+  const datePart = formatDatePart(date);
+  const randomPart = generateRandomAlphanumeric(randomLength);
+  return `${RETURN_NUMBER_PREFIX}-${datePart}-${randomPart}`;
+}
+
+/**
+ * Generates an authoritative unique refund number.
+ * Format: REF-YYYYMMDD-RANDOM8 (e.g. REF-20261114-9A7B3C2D)
+ */
+export function generateRefundNumber(
+  date = new Date(),
+  randomLength = REFUND_NUMBER_RANDOM_LENGTH,
+): string {
+  const datePart = formatDatePart(date);
+  const randomPart = generateRandomAlphanumeric(randomLength);
+  return `${REFUND_NUMBER_PREFIX}-${datePart}-${randomPart}`;
 }

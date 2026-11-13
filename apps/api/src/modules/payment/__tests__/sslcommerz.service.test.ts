@@ -201,4 +201,105 @@ describe('SSLCommerz Gateway Client Service', () => {
       );
     });
   });
+
+  describe('initiateRefund', () => {
+    it('calls SSLCommerz refund API and parses successful refund outcome', async () => {
+      let calledUrl = '';
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        calledUrl = url;
+        return new Response(
+          JSON.stringify({
+            APIConnect: 'DONE',
+            status: 'success',
+            refund_ref_id: 'SSL-REF-9988',
+            trans_id: 'TXN-12345',
+          }),
+          { status: 200 },
+        );
+      });
+
+      const result = await sslcommerzService.initiateRefund({
+        bankTranId: 'BANK-TXN-112233',
+        refundAmount: 50000,
+        refundRemarks: 'Customer return refund',
+        refundRefId: 'REF-20261114-12345678',
+      });
+
+      expect(calledUrl).toContain('/validator/api/merchantTransIDvalidationAPI.php');
+      expect(calledUrl).toContain('refund_amount=500.00');
+      expect(calledUrl).toContain('bank_tran_id=BANK-TXN-112233');
+      expect(calledUrl).toContain('refe_id=REF-20261114-12345678');
+      expect(result.status).toBe('SUCCESS');
+      expect(result.refundRefId).toBe('SSL-REF-9988');
+    });
+
+    it('returns FAILED when gateway returns status failed', async () => {
+      global.fetch = vi.fn().mockImplementation(async () => {
+        return new Response(
+          JSON.stringify({
+            APIConnect: 'DONE',
+            status: 'failed',
+            errorReason: 'Transaction already refunded',
+          }),
+          { status: 200 },
+        );
+      });
+
+      const result = await sslcommerzService.initiateRefund({
+        bankTranId: 'BANK-TXN-112233',
+        refundAmount: 50000,
+        refundRemarks: 'Customer return refund',
+        refundRefId: 'REF-20261114-12345678',
+      });
+
+      expect(result.status).toBe('FAILED');
+      expect(result.errorReason).toBe('Transaction already refunded');
+    });
+
+    it('returns AMBIGUOUS on network error without throwing', async () => {
+      global.fetch = vi.fn().mockRejectedValue(new Error('ETIMEDOUT'));
+
+      const result = await sslcommerzService.initiateRefund({
+        bankTranId: 'BANK-TXN-112233',
+        refundAmount: 50000,
+        refundRemarks: 'Customer return refund',
+        refundRefId: 'REF-20261114-12345678',
+      });
+
+      expect(result.status).toBe('AMBIGUOUS');
+      expect(result.errorReason).toContain('ETIMEDOUT');
+    });
+  });
+
+  describe('queryRefundStatus', () => {
+    it('queries SSLCommerz refund status and parses success response', async () => {
+      let calledUrl = '';
+      global.fetch = vi.fn().mockImplementation(async (url: string) => {
+        calledUrl = url;
+        return new Response(
+          JSON.stringify({
+            APIConnect: 'DONE',
+            status: 'success',
+            refund_ref_id: 'SSL-REF-9988',
+          }),
+          { status: 200 },
+        );
+      });
+
+      const result = await sslcommerzService.queryRefundStatus('SSL-REF-9988');
+
+      expect(calledUrl).toContain('/validator/api/merchantTransIDvalidationAPI.php');
+      expect(calledUrl).toContain('refund_ref_id=SSL-REF-9988');
+      expect(result.status).toBe('SUCCESS');
+      expect(result.refundRefId).toBe('SSL-REF-9988');
+    });
+
+    it('returns AMBIGUOUS on network failure when querying refund status', async () => {
+      global.fetch = vi.fn().mockRejectedValue(new Error('Connection reset'));
+
+      const result = await sslcommerzService.queryRefundStatus('SSL-REF-9988');
+
+      expect(result.status).toBe('AMBIGUOUS');
+    });
+  });
 });

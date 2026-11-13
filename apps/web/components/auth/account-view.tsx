@@ -21,6 +21,7 @@ import {
   Shield,
   MapPin,
   Package,
+  RotateCcw,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { AddressListResponse } from '@/lib/auth-types';
@@ -290,6 +291,29 @@ export function AccountView() {
                     <span className="flex items-center gap-2">
                       <Package className="h-4 w-4 text-primary" />
                       {t('viewOrdersCta')}
+                    </span>
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {user.role === 'CUSTOMER' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <RotateCcw className="h-5 w-5 text-primary" />
+                  {t('returnsTitle')}
+                </CardTitle>
+                <CardDescription>{t('returnsDescription')}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild variant="outline" className="w-full justify-between">
+                  <Link href="/account/returns">
+                    <span className="flex items-center gap-2">
+                      <RotateCcw className="h-4 w-4 text-primary" />
+                      {t('viewReturnsCta')}
                     </span>
                     <ArrowRight className="h-4 w-4" />
                   </Link>

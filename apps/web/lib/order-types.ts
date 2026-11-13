@@ -386,3 +386,328 @@ export interface CancelAdminOrderInput {
 export interface MarkCodPaidInput {
   note?: string;
 }
+
+// ==========================================
+// Phase 7: Customer Returns Types
+// ==========================================
+
+export type ReturnRequestStatus =
+  'REQUESTED' | 'APPROVED' | 'REJECTED' | 'RECEIVED' | 'CANCELLED' | 'COMPLETED';
+
+export type ReturnItemCondition = 'GOOD' | 'DAMAGED' | 'OPENED_UNUSABLE';
+
+export interface CustomerReturnEligibilityItem {
+  orderItemId: string;
+  productId: string | null;
+  productName: string;
+  variantTitle: string;
+  sku: string;
+  thumbnailUrl: string | null;
+  unitPrice: number;
+  netUnitPrice: number;
+  orderedQuantity: number;
+  returnableQuantity: number;
+  isReturnable: boolean;
+}
+
+export interface CustomerReturnEligibilityResponse {
+  isEligible: boolean;
+  reason?: string;
+  calendarDaysPassed: number;
+  daysRemaining: number;
+  deliveryDateDhaka: string | null;
+  cutoffDateDhaka: string | null;
+  orderNumber: string;
+  items: CustomerReturnEligibilityItem[];
+}
+
+export interface CreateReturnItemInput {
+  orderItemId: string;
+  quantity: number;
+  reason?: string;
+}
+
+export interface CreateReturnInput {
+  customerReason: string;
+  customerNotes?: string;
+  items: CreateReturnItemInput[];
+}
+
+export interface CustomerReturnSummary {
+  id: string;
+  returnNumber: string;
+  orderNumber: string;
+  status: ReturnRequestStatus;
+  itemCount: number;
+  estimatedRefundAmount: number;
+  actualRefundAmount: number | null;
+  createdAt: string;
+}
+
+export interface CustomerReturnListResponse {
+  returns: CustomerReturnSummary[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface CustomerReturnItemDetail {
+  id: string;
+  orderItemId: string;
+  productName: string;
+  variantTitle: string;
+  sku: string;
+  thumbnailUrl: string | null;
+  unitPrice: number;
+  quantity: number;
+  reason: string;
+}
+
+export interface CustomerReturnStatusHistoryItem {
+  id: string;
+  fromStatus: ReturnRequestStatus | null;
+  toStatus: ReturnRequestStatus;
+  reason: string | null;
+  createdAt: string;
+}
+
+export interface CustomerReturnDetail {
+  id: string;
+  returnNumber: string;
+  orderNumber: string;
+  status: ReturnRequestStatus;
+  customerReason: string;
+  customerNotes: string | null;
+  rejectionReason: string | null;
+  estimatedRefundAmount: number;
+  actualRefundAmount: number | null;
+  createdAt: string;
+  updatedAt: string;
+  items: CustomerReturnItemDetail[];
+  statusHistory: CustomerReturnStatusHistoryItem[];
+}
+
+export interface CustomerReturnDetailResponse {
+  return: CustomerReturnDetail;
+}
+
+// -------------------------------------------------------------
+// Admin Return Management Types (Phase 7C)
+// -------------------------------------------------------------
+
+export interface AdminReturnSummary {
+  id: string;
+  returnNumber: string;
+  orderNumber: string;
+  customer: {
+    id: string;
+    email: string;
+    name: string;
+    phone: string | null;
+  };
+  status: ReturnRequestStatus;
+  itemCount: number;
+  estimatedRefundAmount: number;
+  actualRefundAmount: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminReturnListResponse {
+  returns: AdminReturnSummary[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface AdminReturnItemDetail {
+  id: string;
+  orderItemId: string;
+  variantId: string | null;
+  productName: string;
+  variantTitle: string;
+  sku: string;
+  thumbnailUrl: string | null;
+  unitPrice: number;
+  quantity: number;
+  reason: string;
+  condition: ReturnItemCondition | null;
+  restockedQuantity: number;
+  inspectionNotes: string | null;
+  inspectedAt: string | null;
+  inspectedByUser: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+}
+
+export interface AdminReturnStatusHistoryItem {
+  id: string;
+  fromStatus: ReturnRequestStatus | null;
+  toStatus: ReturnRequestStatus;
+  reason: string | null;
+  createdAt: string;
+  changedByUser: {
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+}
+
+export interface AdminReturnDetail {
+  id: string;
+  returnNumber: string;
+  orderId: string;
+  orderNumber: string;
+  customer: {
+    id: string;
+    email: string;
+    name: string;
+    phone: string | null;
+  };
+  status: ReturnRequestStatus;
+  customerReason: string;
+  customerNotes: string | null;
+  rejectionReason: string | null;
+  estimatedRefundAmount: number;
+  actualRefundAmount: number | null;
+  shippingFeeRefunded: boolean;
+  createdAt: string;
+  updatedAt: string;
+  orderSummary: {
+    status: OrderStatus;
+    paymentStatus: PaymentStatus;
+    paymentMethod: PaymentMethod;
+    totalPayable: number;
+    merchandiseSubtotal: number;
+    deliveredAt: string | null;
+  };
+  items: AdminReturnItemDetail[];
+  statusHistory: AdminReturnStatusHistoryItem[];
+  refunds: AdminReturnRefund[];
+}
+
+export interface AdminReturnDetailResponse {
+  return: AdminReturnDetail;
+}
+
+export interface AdminReturnListQuery {
+  page?: number;
+  limit?: number;
+  status?: string;
+  orderNumber?: string;
+  returnNumber?: string;
+  startDate?: string;
+  endDate?: string;
+  sortBy?: 'createdAt:desc' | 'createdAt:asc';
+}
+
+export interface AdminApproveReturnInput {
+  notes?: string;
+}
+
+export interface AdminRejectReturnInput {
+  reason: string;
+  notes?: string;
+}
+
+export interface AdminInspectReturnItemInput {
+  returnItemId: string;
+  condition: ReturnItemCondition;
+  inspectedQuantity?: number;
+  notes?: string;
+}
+
+export interface AdminInspectReturnInput {
+  items: AdminInspectReturnItemInput[];
+  notes?: string;
+}
+
+// -------------------------------------------------------------
+// Admin Refund Management Types (Phase 7D)
+// -------------------------------------------------------------
+
+export type RefundStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
+export type PayoutChannel = 'CASH' | 'BKASH' | 'NAGAD' | 'BANK_TRANSFER';
+
+export interface AdminReturnRefund {
+  id: string;
+  refundNumber: string;
+  paymentId: string;
+  amount: number;
+  merchandiseAmount: number;
+  shippingAmount: number;
+  currency: string;
+  method: string;
+  status: RefundStatus;
+  gatewayReference: string | null;
+  payoutChannel: string | null;
+  payoutReference: string | null;
+  failureReason: string | null;
+  notes: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface AdminRefundPreview {
+  returnNumber: string;
+  orderNumber: string;
+  currency: string;
+  merchandiseAmount: number;
+  maxOrderRefundCapacity: number;
+  maxMerchandiseRefundCapacity: number;
+  targetPayment: {
+    id: string;
+    method: PaymentMethod;
+    gateway: string | null;
+    gatewayTransactionId: string | null;
+    capturedAmount: number;
+    totalRefunded: number;
+    remainingCapacity: number;
+  };
+  eligiblePayments: Array<{
+    id: string;
+    method: PaymentMethod;
+    amount: number;
+    totalRefunded: number;
+    remainingCapacity: number;
+  }>;
+  hasPendingRefund: boolean;
+  pendingRefund?: {
+    id: string;
+    refundNumber: string;
+    amount: number;
+    status: RefundStatus;
+    createdAt: string;
+  } | null;
+}
+
+export interface AdminRefundPreviewResponse {
+  preview: AdminRefundPreview;
+}
+
+export interface AdminProcessRefundInput {
+  shippingAmount?: number;
+  shippingRefundReason?: string;
+  paymentId?: string;
+  payoutChannel?: PayoutChannel;
+  payoutReference?: string;
+  notes?: string;
+}
+
+export interface AdminProcessRefundResponse {
+  refund: AdminReturnRefund;
+  return: AdminReturnDetail;
+}
+
+export interface AdminReconcileRefundResponse {
+  refund: AdminReturnRefund;
+  return: AdminReturnDetail;
+}

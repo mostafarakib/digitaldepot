@@ -3,6 +3,7 @@ import { authenticate, requireRole, requireVerifiedEmail } from '../../middlewar
 import { csrfProtection } from '../../middleware/csrf.js';
 import { Role } from '../../generated/client/client.js';
 import { orderController } from './order.controller.js';
+import { returnController } from './return.controller.js';
 
 export const orderRouter = Router();
 export const adminOrderRouter = Router();
@@ -30,6 +31,23 @@ orderRouter.post(
   requireVerifiedEmail,
   csrfProtection,
   orderController.cancelCustomerOrder.bind(orderController),
+);
+
+// Customer return eligibility
+orderRouter.get(
+  '/:orderNumber/return-eligibility',
+  authenticate,
+  requireVerifiedEmail,
+  returnController.getReturnEligibility.bind(returnController),
+);
+
+// Customer return request submission
+orderRouter.post(
+  '/:orderNumber/returns',
+  authenticate,
+  requireVerifiedEmail,
+  csrfProtection,
+  returnController.createReturnRequest.bind(returnController),
 );
 
 // ---------------- Admin Order Management Routes ----------------

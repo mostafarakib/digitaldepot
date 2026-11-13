@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Cpu,
+  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -55,6 +56,7 @@ export function AdminSidebar({
       group: t('groups.operations'),
       items: [
         { href: '/admin/orders', label: t('orders'), icon: ShoppingBag, badge: '14' },
+        { href: '/admin/returns', label: t('returns'), icon: RotateCcw },
         { href: '/admin/customers', label: t('customers'), icon: Users },
         { href: '/admin/promotions', label: t('promotions'), icon: TicketPercent },
         { href: '/admin/reviews', label: t('reviews'), icon: MessageSquare },
