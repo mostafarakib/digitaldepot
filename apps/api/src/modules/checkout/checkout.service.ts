@@ -1,3 +1,4 @@
+import type { Prisma } from '../../generated/client/client.js';
 import { prisma } from '../../lib/prisma.js';
 import { shippingService } from '../cart/shipping.service.js';
 import type {
@@ -13,15 +14,18 @@ export class CheckoutService {
   /**
    * Strictly read-only checkout pre-validation.
    * Performs zero database mutations.
+   * Can receive a transaction client `tx` for authoritative evaluation inside transactions.
    */
   async validateCheckout(
     userId: string,
     input: CheckoutValidationInput,
+    tx: Prisma.TransactionClient | typeof prisma = prisma,
   ): Promise<CheckoutValidationResult> {
+    const db = tx;
     const issues: CheckoutValidationIssue[] = [];
 
     // 1. Resolve Customer Cart (Read-Only)
-    const cart = await prisma.cart.findUnique({
+    const cart = await db.cart.findUnique({
       where: { userId },
       include: {
         coupon: true,
@@ -87,7 +91,7 @@ export class CheckoutService {
     let isAddressValid = false;
 
     if (input.addressId) {
-      const address = await prisma.address.findFirst({
+      const address = await db.address.findFirst({
         where: { id: input.addressId, userId },
       });
 
@@ -113,7 +117,7 @@ export class CheckoutService {
       }
     } else {
       // Fallback in memory to default saved address
-      const defaultAddress = await prisma.address.findFirst({
+      const defaultAddress = await db.address.findFirst({
         where: { userId, isDefault: true },
       });
 
@@ -262,7 +266,7 @@ export class CheckoutService {
         const minTaka = (coupon.minOrderAmount / 100).toLocaleString();
         couponNotice = `Order minimum of ৳${minTaka} required for coupon ${coupon.code}.`;
       } else if (coupon.perCustomerLimit !== null) {
-        const userUsage = await prisma.couponUsage.count({
+        const userUsage = await db.couponUsage.count({
           where: { couponId: coupon.id, userId },
         });
         if (userUsage >= coupon.perCustomerLimit) {

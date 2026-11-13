@@ -1,0 +1,9 @@
+export const PAYMENT_RESERVATION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+export const ORDER_NUMBER_PREFIX = 'DD';
+export const ORDER_NUMBER_RANDOM_LENGTH = 8;
+
+export const TRANSACTION_ID_PREFIX = 'TXN';
+export const TRANSACTION_ID_RANDOM_LENGTH = 8;
+
+export const MAX_ORDER_NUMBER_GENERATION_RETRIES = 5;

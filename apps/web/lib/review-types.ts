@@ -28,6 +28,7 @@ export interface CurrentUserReview {
   title: string | null;
   comment: string;
   status: ReviewStatus;
+  isVerifiedPurchase: boolean;
   rejectionReason: string | null;
   createdAt: string;
   updatedAt: string;

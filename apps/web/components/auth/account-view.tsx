@@ -20,6 +20,7 @@ import {
   KeyRound,
   Shield,
   MapPin,
+  Package,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import type { AddressListResponse } from '@/lib/auth-types';
@@ -273,6 +274,29 @@ export function AccountView() {
               </Button>
             </CardContent>
           </Card>
+
+          {user.role === 'CUSTOMER' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                  <Package className="h-5 w-5 text-primary" />
+                  {t('ordersTitle')}
+                </CardTitle>
+                <CardDescription>{t('ordersDescription')}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button asChild variant="outline" className="w-full justify-between">
+                  <Link href="/account/orders">
+                    <span className="flex items-center gap-2">
+                      <Package className="h-4 w-4 text-primary" />
+                      {t('viewOrdersCta')}
+                    </span>
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
 
           {user.role === 'CUSTOMER' && (
             <Card>

@@ -5,10 +5,19 @@ import { useTranslations } from 'next-intl';
 import { Link, useRouter } from '@/i18n/routing';
 import { useAuth } from '@/components/auth/auth-provider';
 import { useCart } from '@/components/storefront/cart/cart-provider';
-import { validateCheckoutApi, getAddressesApi, apiClient, ApiError } from '@/lib/api-client';
+import {
+  validateCheckoutApi,
+  getAddressesApi,
+  submitCodCheckoutApi,
+  submitOnlineCheckoutApi,
+  apiClient,
+  ApiError,
+} from '@/lib/api-client';
+import type { PaymentMethod } from '@/lib/order-types';
 import type { CheckoutValidationResult, SelectedAddressSummary } from '@/lib/checkout-types';
 import { AddressSelector } from './address-selector';
 import { CheckoutItemsReview } from './checkout-items-review';
+import { PaymentMethodSelector } from './payment-method-selector';
 import { OrderSummaryCard } from './order-summary-card';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,16 +27,13 @@ import {
   CheckCircle2,
   ShoppingCart,
   ArrowLeft,
-  ShieldCheck,
-  X,
 } from 'lucide-react';
 
 export function CheckoutView() {
   const t = useTranslations('checkout');
-  const tCommon = useTranslations('common');
   const router = useRouter();
   const { user, isLoading: isAuthLoading } = useAuth();
-  const { cart, applyCoupon, removeCoupon } = useCart();
+  const { cart, applyCoupon, removeCoupon, refreshCart } = useCart();
 
   // Addresses State
   const [addresses, setAddresses] = useState<SelectedAddressSummary[]>([]);
@@ -50,8 +56,11 @@ export function CheckoutView() {
     message: string;
   } | null>(null);
 
-  // Phase 6 Preview Modal State
-  const [isPhase6ModalOpen, setIsPhase6ModalOpen] = useState(false);
+  // Order Submission State
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
+  const [deliveryNotes, setDeliveryNotes] = useState('');
+  const [alternativePhone, setAlternativePhone] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 1. Fetch Saved Addresses on mount/user change
   useEffect(() => {
@@ -198,6 +207,69 @@ export function CheckoutView() {
     }
   };
 
+  // Handle Place Order (COD or Online)
+  const handlePlaceOrder = async () => {
+    if (!selectedAddressId) {
+      setValidationError(t('blockerAddressRequired'));
+      return;
+    }
+
+    setIsSubmitting(true);
+    setValidationError(null);
+
+    try {
+      if (paymentMethod === 'SSLCOMMERZ') {
+        const res = await submitOnlineCheckoutApi({
+          addressId: selectedAddressId,
+          deliveryNotes: deliveryNotes.trim() || undefined,
+          alternativePhone: alternativePhone.trim() || undefined,
+          acknowledgedLivePrices: isPriceAcknowledged,
+        });
+
+        // Update client-side cart state
+        await refreshCart();
+
+        // Redirect to SSLCommerz gateway
+        if (res.gatewayUrl) {
+          window.location.href = res.gatewayUrl;
+        } else {
+          throw new Error('No gateway URL received from server');
+        }
+      } else {
+        const res = await submitCodCheckoutApi({
+          addressId: selectedAddressId,
+          deliveryNotes: deliveryNotes.trim() || undefined,
+          alternativePhone: alternativePhone.trim() || undefined,
+          acknowledgedLivePrices: isPriceAcknowledged,
+        });
+
+        // Update client-side cart state
+        await refreshCart();
+
+        // Navigate to order confirmation
+        router.push(`/checkout/confirmation/${encodeURIComponent(res.order.orderNumber)}`);
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'PRICE_CHANGE_ACKNOWLEDGEMENT_REQUIRED') {
+        setIsPriceAcknowledged(false);
+        setIsValidating(true);
+        try {
+          const freshValidation = await validateCheckoutApi({ addressId: selectedAddressId });
+          setValidationResult(freshValidation);
+        } catch {
+          // ignore
+        } finally {
+          setIsValidating(false);
+        }
+        setValidationError(err.message);
+      } else {
+        setValidationError(err instanceof ApiError ? err.message : t('validationGenericError'));
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // -------------------------------------------------------------
   // Final Clarification: Blocking State for Unverified Customer
   // -------------------------------------------------------------
@@ -332,7 +404,7 @@ export function CheckoutView() {
 
       {/* Main Checkout Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Delivery Address & Cart Items Review */}
+        {/* Left Column: Delivery Address, Payment Method & Cart Items Review */}
         <div className="lg:col-span-8 space-y-6">
           {/* Delivery Address Selector */}
           <AddressSelector
@@ -340,7 +412,18 @@ export function CheckoutView() {
             selectedAddressId={selectedAddressId}
             onSelectAddress={handleSelectAddress}
             onRefreshAddresses={handleRefreshAddresses}
-            disabled={isValidating}
+            disabled={isValidating || isSubmitting}
+          />
+
+          {/* Payment Method Selector */}
+          <PaymentMethodSelector
+            selectedMethod={paymentMethod}
+            onSelectMethod={setPaymentMethod}
+            deliveryNotes={deliveryNotes}
+            onDeliveryNotesChange={setDeliveryNotes}
+            alternativePhone={alternativePhone}
+            onAlternativePhoneChange={setAlternativePhone}
+            disabled={isValidating || isSubmitting}
           />
 
           {/* Cart Items Review with Price-Change Acknowledgement */}
@@ -350,7 +433,7 @@ export function CheckoutView() {
               hasPriceChanges={validationResult.hasPriceChanges}
               isPriceAcknowledged={isPriceAcknowledged}
               onTogglePriceAcknowledgement={setIsPriceAcknowledged}
-              disabled={isValidating}
+              disabled={isValidating || isSubmitting}
             />
           )}
         </div>
@@ -363,72 +446,20 @@ export function CheckoutView() {
               coupon={validationResult.coupon}
               couponNotice={validationResult.couponNotice}
               selectedAddress={selectedAddress}
+              paymentMethod={paymentMethod}
               canProceed={validationResult.canProceed}
               hasPriceChanges={validationResult.hasPriceChanges}
               isPriceAcknowledged={isPriceAcknowledged}
               isEmailVerified={user?.emailVerified ?? false}
               isValidating={isValidating}
-              onPlaceOrderClick={() => setIsPhase6ModalOpen(true)}
+              isSubmitting={isSubmitting}
+              onPlaceOrderClick={handlePlaceOrder}
               onApplyCoupon={handleApplyCoupon}
               onRemoveCoupon={handleRemoveCoupon}
             />
           )}
         </div>
       </div>
-
-      {/* Phase 6 Preview Readiness Modal */}
-      {isPhase6ModalOpen && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4 animate-in fade-in-0 zoom-in-95">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="size-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-                  <ShieldCheck className="size-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-foreground">
-                    {t('phase6PreviewModalTitle')}
-                  </h3>
-                  <p className="text-xs text-muted-foreground">{t('phase6PreviewModalSubtitle')}</p>
-                </div>
-              </div>
-
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsPhase6ModalOpen(false)}
-                className="h-8 w-8 p-0"
-              >
-                <X className="size-4" />
-              </Button>
-            </div>
-
-            <div className="text-xs text-muted-foreground leading-relaxed space-y-2 bg-muted/40 p-3.5 rounded-lg border border-border">
-              <p>{t('phase6PreviewModalDescription')}</p>
-              <div className="text-foreground font-semibold pt-1">
-                {t('validatedTotal')}:{' '}
-                <span className="text-primary font-bold">
-                  {validationResult && validationResult.summary.finalTotal > 0
-                    ? `৳${(validationResult.summary.finalTotal / 100).toLocaleString()}`
-                    : '৳0'}
-                </span>
-              </div>
-            </div>
-
-            <div className="pt-2 flex justify-end">
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => setIsPhase6ModalOpen(false)}
-                className="text-xs font-bold px-5"
-              >
-                {t('understood')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

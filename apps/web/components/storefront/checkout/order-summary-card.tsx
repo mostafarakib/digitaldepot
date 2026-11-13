@@ -27,11 +27,13 @@ interface OrderSummaryCardProps {
   coupon: AppliedCouponSummary | null;
   couponNotice: string | null;
   selectedAddress: SelectedAddressSummary | null;
+  paymentMethod?: 'COD' | 'SSLCOMMERZ';
   canProceed: boolean;
   hasPriceChanges: boolean;
   isPriceAcknowledged: boolean;
   isEmailVerified: boolean;
   isValidating: boolean;
+  isSubmitting?: boolean;
   onPlaceOrderClick: () => void;
   onApplyCoupon: (code: string) => Promise<void>;
   onRemoveCoupon: () => Promise<void>;
@@ -42,11 +44,13 @@ export function OrderSummaryCard({
   coupon,
   couponNotice,
   selectedAddress,
+  paymentMethod = 'COD',
   canProceed,
   hasPriceChanges,
   isPriceAcknowledged,
   isEmailVerified,
   isValidating,
+  isSubmitting = false,
   onPlaceOrderClick,
   onApplyCoupon,
   onRemoveCoupon,
@@ -275,17 +279,26 @@ export function OrderSummaryCard({
         type="button"
         size="lg"
         onClick={onPlaceOrderClick}
-        disabled={!isReady || isValidating}
+        disabled={!isReady || isValidating || isSubmitting}
         className="w-full h-11 text-sm font-bold gap-2 shadow-sm"
       >
-        {isValidating ? (
+        {isSubmitting ? (
+          <>
+            <Loader2 className="size-4 animate-spin" />
+            <span>{t('placingOrder')}</span>
+          </>
+        ) : isValidating ? (
           <>
             <Loader2 className="size-4 animate-spin" />
             <span>{t('validatingCheckout')}</span>
           </>
         ) : (
           <>
-            <span>{t('placeOrderButton')}</span>
+            <span>
+              {paymentMethod === 'SSLCOMMERZ'
+                ? t('proceedToOnlinePaymentButton')
+                : t('placeCodOrderButton')}
+            </span>
             <ArrowRight className="size-4" />
           </>
         )}

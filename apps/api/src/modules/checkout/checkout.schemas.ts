@@ -6,6 +6,44 @@ export const checkoutValidationSchema = z.object({
 
 export type CheckoutValidationInput = z.infer<typeof checkoutValidationSchema>;
 
+export const checkoutCodInputSchema = z.object({
+  addressId: z.string().trim().min(1, 'Address ID is required'),
+  deliveryNotes: z
+    .string()
+    .trim()
+    .max(500, 'Delivery notes cannot exceed 500 characters')
+    .optional()
+    .nullable(),
+  alternativePhone: z
+    .string()
+    .trim()
+    .regex(/^(\+8801|01)[3-9]\d{8}$/, 'Invalid Bangladesh phone number')
+    .optional()
+    .nullable(),
+  acknowledgedLivePrices: z.boolean().optional().default(false),
+});
+
+export type CheckoutCodInput = z.infer<typeof checkoutCodInputSchema>;
+
+export const checkoutOnlineInputSchema = z.object({
+  addressId: z.string().trim().min(1, 'Address ID is required'),
+  deliveryNotes: z
+    .string()
+    .trim()
+    .max(500, 'Delivery notes cannot exceed 500 characters')
+    .optional()
+    .nullable(),
+  alternativePhone: z
+    .string()
+    .trim()
+    .regex(/^(\+8801|01)[3-9]\d{8}$/, 'Invalid Bangladesh phone number')
+    .optional()
+    .nullable(),
+  acknowledgedLivePrices: z.boolean().optional().default(false),
+});
+
+export type CheckoutOnlineInput = z.infer<typeof checkoutOnlineInputSchema>;
+
 export type CheckoutIssueType =
   | 'EMPTY_CART'
   | 'ADDRESS_REQUIRED'

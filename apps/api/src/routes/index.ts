@@ -5,6 +5,8 @@ import accountRouter from '../modules/account/account.routes.js';
 import cartRouter from '../modules/cart/cart.routes.js';
 import wishlistRouter from '../modules/wishlist/wishlist.routes.js';
 import checkoutRouter from '../modules/checkout/checkout.routes.js';
+import paymentRouter from '../modules/payment/payment.routes.js';
+import { orderRouter, adminOrderRouter } from '../modules/order/index.js';
 import { productReviewRouter, adminReviewRouter } from '../modules/review/review.routes.js';
 import {
   publicCategoryRouter,
@@ -30,10 +32,12 @@ router.use('/brands', publicBrandRouter);
 router.use('/products', productReviewRouter);
 router.use('/products', publicProductRouter);
 
-// Shopping cart, Wishlist & Checkout routes
+// Shopping cart, Wishlist, Checkout & Orders routes
 router.use('/cart', cartRouter);
 router.use('/wishlist', wishlistRouter);
 router.use('/checkout', checkoutRouter);
+router.use('/payments', paymentRouter);
+router.use('/orders', orderRouter);
 
 // Admin catalogue management routes
 router.use('/admin/categories', adminCategoryRouter);
@@ -42,8 +46,9 @@ router.use('/admin/products', adminProductRouter);
 router.use('/admin/variants', adminVariantRouter);
 router.use('/admin/inventory', adminInventoryRouter);
 
-// Admin promotion & moderation routes
+// Admin promotion, review & order operations routes
 router.use('/admin/coupons', adminCouponRouter);
 router.use('/admin/reviews', adminReviewRouter);
+router.use('/admin/orders', adminOrderRouter);
 
 export default router;

@@ -551,9 +551,9 @@ describe('Phase 5E: Checkout Preparation & Pre-Validation API', () => {
       expect(inventoryAfter.quantity).toBe(inventoryBefore.quantity);
       expect(inventoryAfter.reservedQuantity).toBe(inventoryBefore.reservedQuantity);
 
-      // 3. No order models exist
-      const orderModelExists = (prisma as unknown as Record<string, unknown>)['order'];
-      expect(orderModelExists).toBeUndefined(); // Schema does not even have Order yet
+      // 3. Zero orders created
+      const orderCount = await prisma.order.count();
+      expect(orderCount).toBe(0);
     });
   });
 });

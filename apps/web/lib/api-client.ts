@@ -23,6 +23,22 @@ import type {
   AddressListOutput,
   SelectedAddressSummary,
 } from './checkout-types';
+import type {
+  CodCheckoutInput,
+  CodCheckoutResponse,
+  OnlineCheckoutInput,
+  OnlineCheckoutResponse,
+  OrderConfirmationData,
+  CustomerOrderListResponse,
+  CustomerOrderDetailResponse,
+  CancelOrderInput,
+  AdminOrderQuery,
+  AdminOrderListResponse,
+  AdminOrderDetailResponse,
+  UpdateOrderStatusInput,
+  CancelAdminOrderInput,
+  MarkCodPaidInput,
+} from './order-types';
 
 export class ApiError extends Error {
   code: string;
@@ -759,4 +775,142 @@ export async function createAddressApi(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
+}
+
+export async function submitCodCheckoutApi(input: CodCheckoutInput): Promise<CodCheckoutResponse> {
+  return apiClient<CodCheckoutResponse>('/api/checkout/cod', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function submitOnlineCheckoutApi(
+  input: OnlineCheckoutInput,
+): Promise<OnlineCheckoutResponse> {
+  return apiClient<OnlineCheckoutResponse>('/api/checkout/online', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getOrderConfirmationApi(orderNumber: string): Promise<OrderConfirmationData> {
+  return apiClient<OrderConfirmationData>(
+    `/api/checkout/orders/${encodeURIComponent(orderNumber)}/confirmation`,
+  );
+}
+
+// -------------------------------------------------------------
+// Customer Order History & Cancellation Client Methods (Phase 6D)
+// -------------------------------------------------------------
+
+export async function getCustomerOrdersApi(query?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+}): Promise<CustomerOrderListResponse> {
+  const params = new URLSearchParams();
+  if (query?.page) params.set('page', String(query.page));
+  if (query?.limit) params.set('limit', String(query.limit));
+  if (query?.status) params.set('status', query.status);
+  const qs = params.toString();
+  return apiClient<CustomerOrderListResponse>(
+    qs ? `/api/account/orders?${qs}` : '/api/account/orders',
+  );
+}
+
+export async function getCustomerOrderApi(
+  orderNumber: string,
+): Promise<CustomerOrderDetailResponse> {
+  return apiClient<CustomerOrderDetailResponse>(
+    `/api/account/orders/${encodeURIComponent(orderNumber)}`,
+  );
+}
+
+export async function cancelCustomerOrderApi(
+  orderNumber: string,
+  input: CancelOrderInput = {},
+): Promise<{
+  order: {
+    id: string;
+    orderNumber: string;
+    status: string;
+    paymentStatus: string;
+    cancelledAt: string | null;
+    cancellationReason: string | null;
+  };
+}> {
+  return apiClient<{
+    order: {
+      id: string;
+      orderNumber: string;
+      status: string;
+      paymentStatus: string;
+      cancelledAt: string | null;
+      cancellationReason: string | null;
+    };
+  }>(`/api/account/orders/${encodeURIComponent(orderNumber)}/cancel`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+// -------------------------------------------------------------
+// Admin Order Management Client Methods (Phase 6E)
+// -------------------------------------------------------------
+
+export async function getAdminOrdersApi(query?: AdminOrderQuery): Promise<AdminOrderListResponse> {
+  const params = new URLSearchParams();
+  if (query?.page) params.set('page', String(query.page));
+  if (query?.limit) params.set('limit', String(query.limit));
+  if (query?.search) params.set('search', query.search);
+  if (query?.status) params.set('status', query.status);
+  if (query?.paymentStatus) params.set('paymentStatus', query.paymentStatus);
+  if (query?.paymentMethod) params.set('paymentMethod', query.paymentMethod);
+  if (query?.sortBy) params.set('sortBy', query.sortBy);
+
+  const qs = params.toString();
+  return apiClient<AdminOrderListResponse>(qs ? `/api/admin/orders?${qs}` : '/api/admin/orders');
+}
+
+export async function getAdminOrderApi(id: string): Promise<AdminOrderDetailResponse> {
+  return apiClient<AdminOrderDetailResponse>(`/api/admin/orders/${encodeURIComponent(id)}`);
+}
+
+export async function updateAdminOrderStatusApi(
+  id: string,
+  input: UpdateOrderStatusInput,
+): Promise<{ order: unknown }> {
+  return apiClient<{ order: unknown }>(`/api/admin/orders/${encodeURIComponent(id)}/status`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function cancelAdminOrderApi(
+  id: string,
+  input: CancelAdminOrderInput,
+): Promise<{ order: unknown }> {
+  return apiClient<{ order: unknown }>(`/api/admin/orders/${encodeURIComponent(id)}/cancel`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export async function markAdminCodPaidApi(
+  id: string,
+  input: MarkCodPaidInput = {},
+): Promise<{ order: unknown }> {
+  return apiClient<{ order: unknown }>(
+    `/api/admin/orders/${encodeURIComponent(id)}/mark-cod-paid`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
 }

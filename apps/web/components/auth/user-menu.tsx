@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAuth } from './auth-provider';
 import { Link, useRouter } from '@/i18n/routing';
-import { User, LogOut, LayoutDashboard, ShieldCheck, ChevronDown } from 'lucide-react';
+import { User, LogOut, LayoutDashboard, ShieldCheck, ChevronDown, Package } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export function UserMenu() {
@@ -145,6 +145,18 @@ export function UserMenu() {
               <User className="size-4 text-muted-foreground" />
               <span>{t('account')}</span>
             </Link>
+
+            {user.role === 'CUSTOMER' && (
+              <Link
+                href="/account/orders"
+                role="menuitem"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-md hover:bg-muted transition-colors"
+              >
+                <Package className="size-4 text-muted-foreground" />
+                <span>{t('orders')}</span>
+              </Link>
+            )}
 
             {user.role === 'ADMIN' && (
               <Link

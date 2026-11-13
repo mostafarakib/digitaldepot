@@ -39,3 +39,9 @@ export class BadRequestError extends AppError {
     super(400, code, message);
   }
 }
+
+export class BadGatewayError extends AppError {
+  constructor(code = 'BAD_GATEWAY', message = 'Bad gateway') {
+    super(502, code, message);
+  }
+}

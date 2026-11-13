@@ -17,6 +17,9 @@ describe('Environment Configuration Validation (envSchema)', () => {
     GOOGLE_CALLBACK_URL: 'https://digitaldepot.com/api/auth/oauth/google/callback',
     OAUTH_ENCRYPTION_SECRET: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
     OAUTH_STATE_SECRET: 'a-very-long-production-oauth-state-secret-at-least-32-chars',
+    SSLCOMMERZ_STORE_ID: 'real_production_store_id',
+    SSLCOMMERZ_STORE_PASSWORD: 'real_production_store_password',
+    SSLCOMMERZ_IS_SANDBOX: false,
   };
 
   describe('Sender Address Validator (isValidSenderAddress)', () => {
@@ -216,6 +219,44 @@ describe('Environment Configuration Validation (envSchema)', () => {
         OAUTH_STATE_SECRET: 'dev-oauth-state-secret-minimum-32-characters-long!',
       });
       expect(res6.success).toBe(false);
+    });
+
+    it('rejects sandbox mode and default credentials in production', () => {
+      // Sandbox mode true in prod
+      const resSandbox = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_IS_SANDBOX: true,
+      });
+      expect(resSandbox.success).toBe(false);
+      if (!resSandbox.success) {
+        expect(resSandbox.error.flatten().fieldErrors.SSLCOMMERZ_IS_SANDBOX?.[0]).toContain(
+          'SSLCOMMERZ_IS_SANDBOX must be false',
+        );
+      }
+
+      // Default store id in prod
+      const resStoreId = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_STORE_ID: 'digitaldepot_sandbox_store',
+      });
+      expect(resStoreId.success).toBe(false);
+      if (!resStoreId.success) {
+        expect(resStoreId.error.flatten().fieldErrors.SSLCOMMERZ_STORE_ID?.[0]).toContain(
+          'SSLCOMMERZ_STORE_ID must be configured',
+        );
+      }
+
+      // Default store password in prod
+      const resPassword = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_STORE_PASSWORD: 'digitaldepot_sandbox_password',
+      });
+      expect(resPassword.success).toBe(false);
+      if (!resPassword.success) {
+        expect(resPassword.error.flatten().fieldErrors.SSLCOMMERZ_STORE_PASSWORD?.[0]).toContain(
+          'SSLCOMMERZ_STORE_PASSWORD must be configured',
+        );
+      }
     });
   });
 });

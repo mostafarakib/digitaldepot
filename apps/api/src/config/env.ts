@@ -56,6 +56,10 @@ export const envSchema = z
       .string()
       .min(32, 'OAUTH_STATE_SECRET must be at least 32 characters')
       .default('dev-oauth-state-secret-minimum-32-characters-long!'),
+    API_BASE_URL: z.string().url().default('http://localhost:4000'),
+    SSLCOMMERZ_STORE_ID: z.string().min(1).default('digitaldepot_sandbox_store'),
+    SSLCOMMERZ_STORE_PASSWORD: z.string().min(1).default('digitaldepot_sandbox_password'),
+    SSLCOMMERZ_IS_SANDBOX: z.coerce.boolean().default(true),
   })
   .superRefine((data, ctx) => {
     // Exact 32 decoded bytes validation for AES-256-GCM
@@ -136,6 +140,41 @@ export const envSchema = z
           message:
             'In production, GOOGLE_CLIENT_SECRET must be configured with a production secret',
           path: ['GOOGLE_CLIENT_SECRET'],
+        });
+      }
+
+      // In production, SSLCommerz sandbox mode is forbidden
+      if (data.SSLCOMMERZ_IS_SANDBOX) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'In production, SSLCOMMERZ_IS_SANDBOX must be false',
+          path: ['SSLCOMMERZ_IS_SANDBOX'],
+        });
+      }
+
+      // In production, SSLCOMMERZ_STORE_ID must not be the default placeholder
+      if (
+        data.SSLCOMMERZ_STORE_ID === 'digitaldepot_sandbox_store' ||
+        data.SSLCOMMERZ_STORE_ID.trim().length === 0
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'In production, SSLCOMMERZ_STORE_ID must be configured with a production store ID',
+          path: ['SSLCOMMERZ_STORE_ID'],
+        });
+      }
+
+      // In production, SSLCOMMERZ_STORE_PASSWORD must not be the default placeholder
+      if (
+        data.SSLCOMMERZ_STORE_PASSWORD === 'digitaldepot_sandbox_password' ||
+        data.SSLCOMMERZ_STORE_PASSWORD.trim().length === 0
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'In production, SSLCOMMERZ_STORE_PASSWORD must be configured with a production store password',
+          path: ['SSLCOMMERZ_STORE_PASSWORD'],
         });
       }
 

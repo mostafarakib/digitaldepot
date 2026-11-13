@@ -37,6 +37,7 @@ export interface CurrentUserReview {
   title: string | null;
   comment: string;
   status: ReviewStatus;
+  isVerifiedPurchase: boolean;
   rejectionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -176,6 +177,7 @@ export class ReviewService {
           title: userReview.title,
           comment: userReview.comment,
           status: userReview.status,
+          isVerifiedPurchase: userReview.isVerifiedPurchase,
           rejectionReason: userReview.rejectionReason,
           createdAt: userReview.createdAt,
           updatedAt: userReview.updatedAt,
@@ -202,52 +204,81 @@ export class ReviewService {
   }
 
   /**
-   * Submits a customer review for a published product.
-   * If existing review exists, updates it and REVERTS status to PENDING for re-moderation.
+   * Checks whether the customer has completed a delivered purchase for this product.
+   * Only DELIVERED orders containing an item matching productId qualify.
    */
-  async submitReview(userId: string, slug: string, input: CreateReviewInput) {
-    const product = await validateStorefrontVisibility(slug);
-
-    const existing = await prisma.productReview.findUnique({
+  async checkVerifiedPurchaseEligibility(
+    userId: string,
+    productId: string,
+    tx: Prisma.TransactionClient | typeof prisma = prisma,
+  ): Promise<boolean> {
+    const deliveredCount = await tx.orderItem.count({
       where: {
-        userId_productId: {
+        productId,
+        order: {
           userId,
-          productId: product.id,
+          status: 'DELIVERED',
         },
       },
     });
 
-    let review;
-    if (existing) {
-      // Revert status to PENDING on edit to ensure moderation integrity
-      review = await prisma.productReview.update({
-        where: { id: existing.id },
-        data: {
-          rating: input.rating,
-          title: input.title ?? null,
-          comment: input.comment,
-          status: 'PENDING',
-          moderatedAt: null,
-          moderatorId: null,
-          rejectionReason: null,
-        },
-      });
-    } else {
-      // Create new review in PENDING status
-      review = await prisma.productReview.create({
-        data: {
-          userId,
-          productId: product.id,
-          rating: input.rating,
-          title: input.title ?? null,
-          comment: input.comment,
-          status: 'PENDING',
-          isVerifiedPurchase: false, // Phase 6 order linkage
-        },
-      });
-    }
+    return deliveredCount > 0;
+  }
 
-    return review;
+  /**
+   * Submits a customer review for a published product.
+   * If existing review exists, updates it and REVERTS status to PENDING for re-moderation.
+   * Executes within a transaction to ensure eligibility verification concurrency.
+   */
+  async submitReview(userId: string, slug: string, input: CreateReviewInput) {
+    const product = await validateStorefrontVisibility(slug);
+
+    return await prisma.$transaction(async (tx) => {
+      const isVerifiedPurchase = await this.checkVerifiedPurchaseEligibility(
+        userId,
+        product.id,
+        tx,
+      );
+
+      const existing = await tx.productReview.findUnique({
+        where: {
+          userId_productId: {
+            userId,
+            productId: product.id,
+          },
+        },
+      });
+
+      if (existing) {
+        // Revert status to PENDING on edit to ensure moderation integrity
+        return await tx.productReview.update({
+          where: { id: existing.id },
+          data: {
+            rating: input.rating,
+            title: input.title ?? null,
+            comment: input.comment,
+            status: 'PENDING',
+            isVerifiedPurchase,
+            moderatedAt: null,
+            moderatorId: null,
+            rejectionReason: null,
+          },
+        });
+      } else {
+        // Create new review in PENDING status
+        return await tx.productReview.create({
+          data: {
+            userId,
+            productId: product.id,
+            rating: input.rating,
+            title: input.title ?? null,
+            comment: input.comment,
+            status: 'PENDING',
+            isVerifiedPurchase,
+          },
+        });
+      }
+    });
   }
 
   /**

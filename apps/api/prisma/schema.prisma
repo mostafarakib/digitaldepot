@@ -52,6 +52,8 @@ model User {
   inventoryAdjustments InventoryAdjustment[]
   cart                Cart?
   couponUsages        CouponUsage[]
+  orders              Order[]
+  orderStatusHistories OrderStatusHistory[]
   wishlistItems       WishlistItem[]
   productReviews      ProductReview[]
   createdAt           DateTime             @default(now())
@@ -250,6 +252,7 @@ model Product {
   images         ProductImage[]
   wishlistItems  WishlistItem[]
   reviews        ProductReview[]
+  orderItems     OrderItem[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -291,6 +294,7 @@ model ProductVariant {
   priceHistory   PriceHistory[]
   inventoryItem  InventoryItem?
   cartItems      CartItem[]
+  orderItems     OrderItem[]
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -324,6 +328,8 @@ enum InventoryAdjustmentType {
   DAMAGE
   THEFT_LOSS
   RETURN_RESTOCK
+  ORDER_FULFILLMENT
+  ORDER_CANCELLATION
 }
 
 model InventoryItem {
@@ -412,6 +418,7 @@ model Coupon {
   isActive          Boolean            @default(true)
   usages            CouponUsage[]
   carts             Cart[]
+  orders            Order[]
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
 
@@ -426,12 +433,14 @@ model CouponUsage {
   coupon    Coupon   @relation(fields: [couponId], references: [id], onDelete: Restrict)
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  orderId   String?  // Reference to order (order relation introduced in Phase 6)
+  orderId   String?  // Reference to order
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
   usedAt    DateTime @default(now())
 
   @@index([couponId])
   @@index([userId])
   @@index([couponId, userId])
+  @@index([orderId])
 }
 
 enum ReviewStatus {
@@ -474,6 +483,148 @@ model ProductReview {
   @@index([productId, status])
   @@index([userId])
   @@index([status, createdAt])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  COD
+  SSLCOMMERZ
+}
+
+model Order {
+  id                       String               @id @default(cuid())
+  orderNumber              String               @unique // DD-YYYYMMDD-RANDOM8
+  userId                   String
+  user                     User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status                   OrderStatus          @default(PENDING)
+  paymentStatus            PaymentStatus        @default(PENDING)
+  paymentMethod            PaymentMethod
+
+  // Financial Snapshot in integer BDT poisha
+  merchandiseSubtotal      Int
+  discountAmount           Int                  @default(0)
+  shippingFee              Int
+  totalPayable             Int
+
+  // Delivery Address Snapshot
+  shippingRecipientName    String
+  shippingPhone            String
+  shippingAlternativePhone String?
+  shippingDivisionId       String
+  shippingDistrictId       String
+  shippingUpazila          String
+  shippingStreetAddress    String
+  shippingDeliveryNotes    String?
+
+  // Coupon Snapshot
+  couponId                 String?
+  coupon                   Coupon?              @relation(fields: [couponId], references: [id], onDelete: SetNull)
+  couponCode               String?
+  couponDiscountType       CouponDiscountType?
+  couponDiscountValue      Int?
+  couponDiscountAmount     Int                  @default(0)
+
+  // Online Payment Reservation Expiration (30-minute window for SSLCommerz)
+  paymentExpiresAt         DateTime?
+
+  // Cancellation Audit
+  cancelledAt              DateTime?
+  cancellationReason       String?
+
+  // Relations
+  items                    OrderItem[]
+  payments                 Payment[]
+  statusHistory            OrderStatusHistory[]
+  couponUsages             CouponUsage[]
+
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([shippingDistrictId])
+  @@index([status, paymentMethod, paymentExpiresAt])
+}
+
+model OrderItem {
+  id           String          @id @default(cuid())
+  orderId      String
+  order        Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String?
+  product      Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variantId    String?
+  variant      ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  // Immutable Item Snapshot
+  productName  String
+  variantTitle String
+  sku          String
+  unitPrice    Int             // BDT poisha
+  quantity     Int
+  lineTotal    Int             // unitPrice * quantity
+  attributes   Json?           // Variant attributes snapshot
+  thumbnailUrl String?
+
+  createdAt    DateTime        @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+}
+
+model Payment {
+  id                   String        @id @default(cuid())
+  orderId              String
+  order                Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  transactionId        String        @unique // Internal unique ref: TXN-YYYYMMDD-RANDOM8
+  gatewayTransactionId String?       // SSLCommerz bank_tran_id / val_id
+  method               PaymentMethod
+  status               PaymentStatus @default(PENDING)
+  amount               Int           // BDT poisha
+  currency             String        @default("BDT")
+  gatewayResponse      Json?         // Full gateway audit payload
+  paidAt               DateTime?
+  failedAt             DateTime?
+  cancelledAt          DateTime?
+
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  @@index([orderId])
+  @@index([gatewayTransactionId])
+  @@index([status])
+}
+
+model OrderStatusHistory {
+  id              String       @id @default(cuid())
+  orderId         String
+  order           Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  fromStatus      OrderStatus?
+  toStatus        OrderStatus
+  reason          String?
+  changedByUserId String?
+  changedByUser   User?        @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime     @default(now())
+
+  @@index([orderId, createdAt])
+  @@index([changedByUserId])
 }
 
 

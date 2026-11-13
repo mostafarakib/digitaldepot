@@ -307,3 +307,25 @@ export const oauthUnlinkLimiter = rateLimit({
     });
   },
 });
+
+export const checkoutSubmissionLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 10, // 10 checkout submissions per 10 minutes per IP+User
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: shouldSkip,
+  keyGenerator: (req: Request): string => {
+    const userId = req.user?.id || 'anonymous';
+    const clientIp = ipKeyGenerator(req.ip || req.socket.remoteAddress || '127.0.0.1');
+    return `${clientIp}_${userId}`;
+  },
+  handler: (_req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      error: {
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Too many checkout attempts. Please wait 10 minutes before trying again.',
+      },
+    });
+  },
+});

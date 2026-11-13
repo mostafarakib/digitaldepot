@@ -29,6 +29,9 @@ app.use(cookieParser());
 // Parse JSON request bodies
 app.use(express.json());
 
+// Parse URL-encoded request bodies (for payment gateway callbacks)
+app.use(express.urlencoded({ extended: true }));
+
 // Request logging (sanitized by Pino redaction)
 app.use((req: Request, _res: Response, next: NextFunction) => {
   logger.info({ method: req.method, path: req.path }, 'Incoming request');
