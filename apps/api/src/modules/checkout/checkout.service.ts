@@ -1,6 +1,7 @@
 import type { Prisma } from '../../generated/client/client.js';
 import { prisma } from '../../lib/prisma.js';
 import { shippingService } from '../cart/shipping.service.js';
+import { settingsService } from '../settings/settings.service.js';
 import type {
   CheckoutValidationInput,
   CheckoutValidationResult,
@@ -305,7 +306,12 @@ export class CheckoutService {
 
     // 6. In-Memory Shipping Calculation directly from selected address (Clarification #2)
     const resolvedDistrict = selectedAddress ? selectedAddress.districtId : null;
-    const shipping = shippingService.calculateShipping(merchandiseSubtotal, resolvedDistrict);
+    const shippingConfig = await settingsService.getShippingConfig(db);
+    const shipping = shippingService.calculateShipping(
+      merchandiseSubtotal,
+      resolvedDistrict,
+      shippingConfig,
+    );
     const shippingFee = shipping.isEstimated ? shipping.shippingFee : 0;
 
     const merchandisePayable = Math.max(0, merchandiseSubtotal - discount);

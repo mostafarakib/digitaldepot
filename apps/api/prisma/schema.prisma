@@ -60,6 +60,9 @@ model User {
   returnItemsInspected ReturnItem[]
   refundsProcessed    Refund[]
   returnStatusHistories ReturnStatusHistory[]
+  storeSettingsUpdated StoreSetting[]
+  customerStatusHistories CustomerStatusHistory[] @relation("CustomerStatusHistoryTarget")
+  customerStatusAudits  CustomerStatusHistory[] @relation("CustomerStatusHistoryAdmin")
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -751,6 +754,52 @@ model ReturnStatusHistory {
 
   @@index([returnRequestId, createdAt])
   @@index([changedByUserId])
+}
+
+model StoreSetting {
+  id                          String   @id @default("default")
+
+  // Shipping Configuration (All monetary values in integer BDT poisha)
+  insideDhakaShippingFee      Int      @default(6000)   // ৳60
+  outsideDhakaShippingFee     Int      @default(12000)  // ৳120
+  freeShippingThreshold       Int      @default(500000) // ৳5,000
+
+  // Estimated Delivery Windows (business calendar days)
+  estimatedDaysInsideDhakaMin Int      @default(2)
+  estimatedDaysInsideDhakaMax Int      @default(3)
+  estimatedDaysOutsideDhakaMin Int     @default(3)
+  estimatedDaysOutsideDhakaMax Int     @default(5)
+
+  // Store & Customer Support Information
+  storeName                   String   @default("DigitalDepot")
+  supportEmail                String   @default("support@digitaldepot.local")
+  supportPhone                String?  @default("+880 1700-000000")
+  supportHours                String?  @default("Sat – Thu: 10:00 AM – 8:00 PM")
+  storeAddress                String?  @default("Dhaka, Bangladesh")
+
+  // Audit
+  updatedByUserId             String?
+  updatedByUser               User?    @relation(fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@index([updatedByUserId])
+}
+
+model CustomerStatusHistory {
+  id              String       @id @default(cuid())
+  customerId      String
+  customer        User         @relation("CustomerStatusHistoryTarget", fields: [customerId], references: [id], onDelete: Cascade)
+  fromStatus      UserStatus?
+  toStatus        UserStatus
+  reason          String
+  changedByUserId String?
+  changedByUser   User?        @relation("CustomerStatusHistoryAdmin", fields: [changedByUserId], references: [id], onDelete: SetNull)
+  createdAt       DateTime     @default(now())
+
+  @@index([customerId, createdAt])
+  @@index([changedByUserId])
+  @@index([createdAt])
 }
 
 

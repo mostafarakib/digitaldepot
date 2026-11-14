@@ -24,6 +24,11 @@ import {
   adminInventoryRouter,
 } from '../modules/catalogue/catalogue.routes.js';
 import { adminCouponRouter } from '../modules/coupon/coupon.routes.js';
+import { publicSettingsRouter, adminSettingsRouter } from '../modules/settings/settings.routes.js';
+import { adminCustomerRouter } from '../modules/customer/customer.routes.js';
+import { adminPaymentRouter } from '../modules/payment/admin-payment.routes.js';
+import { adminAuditRouter } from '../modules/audit/audit.routes.js';
+import adminReportRouter from '../modules/report/report.routes.js';
 
 const router = Router();
 
@@ -57,5 +62,14 @@ router.use('/admin/coupons', adminCouponRouter);
 router.use('/admin/reviews', adminReviewRouter);
 router.use('/admin/orders', adminOrderRouter);
 router.use('/admin/returns', adminReturnRouter);
+router.use('/admin/settings', adminSettingsRouter);
+router.use('/admin/customers', adminCustomerRouter);
+router.use('/admin/payments', adminPaymentRouter);
+router.use('/admin/audit-logs', adminAuditRouter);
+router.use('/admin/reports', adminReportRouter);
+
+// Public settings & store configuration
+router.use('/store/settings', publicSettingsRouter);
+router.use('/settings/public', publicSettingsRouter);
 
 export default router;

@@ -5,6 +5,7 @@ import type { Cart, Prisma } from '../../generated/client/client.js';
 import type { AddToCartInput, UpdateCartItemInput, EstimateShippingInput } from './cart.schemas.js';
 import { couponService } from '../coupon/coupon.service.js';
 import { shippingService, type ShippingEstimate } from './shipping.service.js';
+import { settingsService } from '../settings/settings.service.js';
 import { isValidDistrict } from '../account/data/bangladesh-geo.js';
 
 export interface CartIdentifier {
@@ -113,6 +114,8 @@ export class CartService {
     cart: CartWithRelations | null,
     options?: { couponNotice?: string | null },
   ): Promise<HydratedCart> {
+    const shippingConfig = await settingsService.getShippingConfig();
+
     if (!cart || !cart.items) {
       return {
         id: null,
@@ -121,7 +124,7 @@ export class CartService {
         totalQuantity: 0,
         subtotal: 0,
         discount: 0,
-        shipping: shippingService.calculateShipping(0, null),
+        shipping: shippingService.calculateShipping(0, null, shippingConfig),
         total: 0,
         hasUnavailableItems: false,
         hasPriceChanges: false,
@@ -276,7 +279,7 @@ export class CartService {
       }
     }
 
-    const shipping = shippingService.calculateShipping(subtotal, resolvedDistrict);
+    const shipping = shippingService.calculateShipping(subtotal, resolvedDistrict, shippingConfig);
     const merchandisePayable = Math.max(0, subtotal - discount);
     const total =
       items.length > 0 ? merchandisePayable + (shipping.isEstimated ? shipping.shippingFee : 0) : 0;
@@ -559,7 +562,8 @@ export class CartService {
       }
     }
 
-    const shipping = shippingService.calculateShipping(0, resolvedDistrict);
+    const shippingConfig = await settingsService.getShippingConfig();
+    const shipping = shippingService.calculateShipping(0, resolvedDistrict, shippingConfig);
 
     return {
       id: cart?.id ?? null,

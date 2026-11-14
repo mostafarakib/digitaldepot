@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import { Truck, CheckCircle2, MapPin, Loader2, X } from 'lucide-react';
+import { Truck, CheckCircle2, MapPin, Loader2, X, Clock } from 'lucide-react';
 import { useCart } from './cart-provider';
 import { useAuth } from '@/components/auth/auth-provider';
 import { getBangladeshDivisions } from '@/lib/bangladesh-geo-client';
@@ -180,6 +180,22 @@ export function DeliveryEstimator() {
           {t('outsideDhaka')}
         </Button>
       </div>
+
+      {/* Dynamic Delivery Time Estimate */}
+      {shipping?.isEstimated && shipping.estimatedDaysMin && shipping.estimatedDaysMax && (
+        <div className="flex items-center justify-between text-xs px-2.5 py-1.5 rounded-md bg-muted/50 border border-border/50">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Clock className="h-3.5 w-3.5 text-primary" />
+            <span>{t('estimatedDaysLabel')}</span>
+          </div>
+          <span className="font-medium text-foreground">
+            {t('estimatedDays', {
+              min: shipping.estimatedDaysMin,
+              max: shipping.estimatedDaysMax,
+            })}
+          </span>
+        </div>
+      )}
 
       {/* Saved Addresses (if available) */}
       {effectiveAddresses.length > 0 && (

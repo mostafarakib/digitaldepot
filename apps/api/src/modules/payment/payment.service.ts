@@ -7,6 +7,14 @@ import { inventoryReservationService } from '../order/inventory-reservation.serv
 import { orderCouponService } from '../order/order-coupon.service.js';
 import type { OrderStockItem } from '../order/order.types.js';
 import type { Prisma } from '../../generated/client/client.js';
+import type {
+  AdminPaymentQueryInput,
+  AdminPaymentListResponse,
+  AdminPaymentListItem,
+  AdminPaymentStats,
+  AdminPaymentDetailResponse,
+  SafeGatewayDetails,
+} from './payment.schemas.js';
 
 export interface PaymentProcessResult {
   orderNumber: string;
@@ -529,6 +537,403 @@ export class PaymentService {
       status: 'FAILED',
       reason: `Unsupported IPN status: ${status}`,
     };
+  }
+
+  /**
+   * Admin Payment Monitoring: Lists payment attempts with filtering, sorting, pagination, and KPI metrics.
+   */
+  async listPayments(query: AdminPaymentQueryInput): Promise<AdminPaymentListResponse> {
+    const where: Prisma.PaymentWhereInput = {};
+
+    // 1. Status Filter
+    if (query.status && query.status !== 'ALL') {
+      where.status = query.status;
+    }
+
+    // 2. Method Filter
+    if (query.method && query.method !== 'ALL') {
+      where.method = query.method;
+    }
+
+    // 3. Date range filter
+    if (query.dateFrom || query.dateTo) {
+      where.createdAt = {
+        ...(query.dateFrom ? { gte: new Date(query.dateFrom) } : {}),
+        ...(query.dateTo ? { lte: new Date(query.dateTo) } : {}),
+      };
+    }
+
+    // 4. Order number & Customer ID filters
+    const orderWhere: Prisma.OrderWhereInput = {};
+    if (query.orderNumber) {
+      orderWhere.orderNumber = { contains: query.orderNumber.trim(), mode: 'insensitive' };
+    }
+    if (query.customerId) {
+      orderWhere.userId = query.customerId;
+    }
+    if (Object.keys(orderWhere).length > 0) {
+      where.order = orderWhere;
+    }
+
+    // 6. Free text search across transaction references, orderNumber, customer name/email/phone
+    if (query.search) {
+      const s = query.search.trim();
+      where.OR = [
+        { transactionId: { contains: s, mode: 'insensitive' } },
+        { gatewayTransactionId: { contains: s, mode: 'insensitive' } },
+        { order: { orderNumber: { contains: s, mode: 'insensitive' } } },
+        { order: { user: { email: { contains: s, mode: 'insensitive' } } } },
+        { order: { shippingRecipientName: { contains: s, mode: 'insensitive' } } },
+        { order: { shippingPhone: { contains: s, mode: 'insensitive' } } },
+      ];
+    }
+
+    // 7. Sorting
+    let orderBy: Prisma.PaymentOrderByWithRelationInput = { createdAt: 'desc' };
+    if (query.sortBy === 'oldest') {
+      orderBy = { createdAt: 'asc' };
+    } else if (query.sortBy === 'amountDesc') {
+      orderBy = { amount: 'desc' };
+    } else if (query.sortBy === 'amountAsc') {
+      orderBy = { amount: 'asc' };
+    } else if (query.sortBy === 'paidAtDesc') {
+      orderBy = { paidAt: 'desc' };
+    }
+
+    // 8. Pagination
+    const page = query.page;
+    const limit = query.limit;
+    const skip = (page - 1) * limit;
+
+    const [totalMatching, rawPayments] = await Promise.all([
+      prisma.payment.count({ where }),
+      prisma.payment.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+        include: {
+          order: {
+            select: {
+              id: true,
+              orderNumber: true,
+              status: true,
+              totalPayable: true,
+              user: {
+                select: {
+                  id: true,
+                  email: true,
+                  profile: {
+                    select: {
+                      firstName: true,
+                      lastName: true,
+                      phone: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          refunds: {
+            where: { status: 'COMPLETED' },
+            select: {
+              amount: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    // 9. Compute KPI Stats across all matching payments
+    const [
+      totalAttempts,
+      capturedAggregate,
+      pendingPayments,
+      failedPayments,
+      cancelledPayments,
+      completedRefundsSum,
+    ] = await Promise.all([
+      prisma.payment.count({ where }),
+      prisma.payment.aggregate({
+        where: {
+          ...where,
+          status: { in: ['PAID', 'REFUNDED'] },
+        },
+        _count: { id: true },
+        _sum: { amount: true },
+      }),
+      prisma.payment.count({
+        where: { ...where, status: 'PENDING' },
+      }),
+      prisma.payment.count({
+        where: { ...where, status: 'FAILED' },
+      }),
+      prisma.payment.count({
+        where: { ...where, status: 'CANCELLED' },
+      }),
+      prisma.refund.aggregate({
+        where: {
+          status: 'COMPLETED',
+          payment: where,
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const totalCapturedPoisha = capturedAggregate._sum.amount ?? 0;
+    const totalRefundedPoisha = completedRefundsSum._sum.amount ?? 0;
+    const netRetainedPoisha = Math.max(0, totalCapturedPoisha - totalRefundedPoisha);
+
+    const stats: AdminPaymentStats = {
+      totalAttempts,
+      successfulPayments: capturedAggregate._count.id ?? 0,
+      failedPayments,
+      pendingPayments,
+      cancelledPayments,
+      totalCapturedPoisha,
+      totalRefundedPoisha,
+      netRetainedPoisha,
+    };
+
+    const payments: AdminPaymentListItem[] = rawPayments.map((p) => {
+      const refundedAmount = p.refunds.reduce((sum, r) => sum + r.amount, 0);
+      const isCaptured = p.status === 'PAID' || p.status === 'REFUNDED';
+      const netAmount = isCaptured ? Math.max(0, p.amount - refundedAmount) : 0;
+      const customerName = p.order.user.profile
+        ? `${p.order.user.profile.firstName} ${p.order.user.profile.lastName}`.trim()
+        : p.order.user.email.split('@')[0];
+
+      return {
+        id: p.id,
+        transactionId: p.transactionId,
+        gatewayTransactionId: p.gatewayTransactionId,
+        method: p.method,
+        status: p.status,
+        amount: p.amount,
+        currency: p.currency,
+        refundedAmount,
+        netAmount,
+        paidAt: p.paidAt ? p.paidAt.toISOString() : null,
+        failedAt: p.failedAt ? p.failedAt.toISOString() : null,
+        cancelledAt: p.cancelledAt ? p.cancelledAt.toISOString() : null,
+        createdAt: p.createdAt.toISOString(),
+        order: {
+          id: p.order.id,
+          orderNumber: p.order.orderNumber,
+          status: p.order.status,
+          totalPayable: p.order.totalPayable,
+          customer: {
+            id: p.order.user.id,
+            email: p.order.user.email,
+            name: customerName,
+            phone: p.order.user.profile?.phone ?? null,
+          },
+        },
+      };
+    });
+
+    return {
+      payments,
+      stats,
+      pagination: {
+        page,
+        limit,
+        total: totalMatching,
+        totalPages: Math.ceil(totalMatching / limit),
+      },
+    };
+  }
+
+  /**
+   * Admin Payment Monitoring: Retrieves detailed payment inspection data.
+   */
+  async getPaymentDetail(id: string): Promise<AdminPaymentDetailResponse> {
+    const payment = await prisma.payment.findUnique({
+      where: { id },
+      include: {
+        order: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                profile: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                    phone: true,
+                  },
+                },
+              },
+            },
+            items: {
+              select: {
+                id: true,
+                productName: true,
+                variantTitle: true,
+                sku: true,
+                unitPrice: true,
+                quantity: true,
+                lineTotal: true,
+                thumbnailUrl: true,
+              },
+            },
+            payments: {
+              select: {
+                id: true,
+                transactionId: true,
+                method: true,
+                status: true,
+                amount: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: 'asc' },
+            },
+          },
+        },
+        refunds: {
+          include: {
+            returnRequest: {
+              select: {
+                returnNumber: true,
+              },
+            },
+            processedByUser: {
+              select: {
+                id: true,
+                email: true,
+                profile: {
+                  select: {
+                    firstName: true,
+                    lastName: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!payment) {
+      throw new NotFoundError('PAYMENT_NOT_FOUND', `Payment with ID ${id} was not found`);
+    }
+
+    const completedRefundsAmount = payment.refunds
+      .filter((r) => r.status === 'COMPLETED')
+      .reduce((sum, r) => sum + r.amount, 0);
+
+    const isCaptured = payment.status === 'PAID' || payment.status === 'REFUNDED';
+    const netAmount = isCaptured ? Math.max(0, payment.amount - completedRefundsAmount) : 0;
+    const remainingRefundCapacity =
+      payment.status === 'PAID' ? Math.max(0, payment.amount - completedRefundsAmount) : 0;
+
+    const customerName = payment.order.user.profile
+      ? `${payment.order.user.profile.firstName} ${payment.order.user.profile.lastName}`.trim()
+      : payment.order.user.email.split('@')[0];
+
+    const safeGatewayDetails = this.extractSafeGatewayDetails(payment.gatewayResponse);
+
+    return {
+      payment: {
+        id: payment.id,
+        transactionId: payment.transactionId,
+        gatewayTransactionId: payment.gatewayTransactionId,
+        method: payment.method,
+        status: payment.status,
+        amount: payment.amount,
+        currency: payment.currency,
+        refundedAmount: completedRefundsAmount,
+        netAmount,
+        paidAt: payment.paidAt ? payment.paidAt.toISOString() : null,
+        failedAt: payment.failedAt ? payment.failedAt.toISOString() : null,
+        cancelledAt: payment.cancelledAt ? payment.cancelledAt.toISOString() : null,
+        createdAt: payment.createdAt.toISOString(),
+        safeGatewayDetails,
+        remainingRefundCapacity,
+        order: {
+          id: payment.order.id,
+          orderNumber: payment.order.orderNumber,
+          status: payment.order.status,
+          paymentStatus: payment.order.paymentStatus,
+          paymentMethod: payment.order.paymentMethod,
+          merchandiseSubtotal: payment.order.merchandiseSubtotal,
+          shippingFee: payment.order.shippingFee,
+          discountAmount: payment.order.discountAmount,
+          totalPayable: payment.order.totalPayable,
+          shippingAddress: {
+            recipientName: payment.order.shippingRecipientName,
+            phone: payment.order.shippingPhone,
+            alternativePhone: payment.order.shippingAlternativePhone,
+            streetAddress: payment.order.shippingStreetAddress,
+            upazila: payment.order.shippingUpazila,
+            districtId: payment.order.shippingDistrictId,
+            divisionId: payment.order.shippingDivisionId,
+          },
+          items: payment.order.items,
+          customer: {
+            id: payment.order.user.id,
+            email: payment.order.user.email,
+            name: customerName,
+            phone: payment.order.user.profile?.phone ?? null,
+          },
+          otherPaymentAttempts: payment.order.payments.map((p) => ({
+            id: p.id,
+            transactionId: p.transactionId,
+            method: p.method,
+            status: p.status,
+            amount: p.amount,
+            createdAt: p.createdAt.toISOString(),
+          })),
+        },
+        refunds: payment.refunds.map((r) => {
+          const processorName = r.processedByUser?.profile
+            ? `${r.processedByUser.profile.firstName} ${r.processedByUser.profile.lastName}`.trim()
+            : (r.processedByUser?.email ?? null);
+
+          return {
+            id: r.id,
+            refundNumber: r.refundNumber,
+            returnRequestId: r.returnRequestId,
+            returnNumber: r.returnRequest.returnNumber,
+            amount: r.amount,
+            merchandiseAmount: r.merchandiseAmount,
+            shippingAmount: r.shippingAmount,
+            method: r.method,
+            status: r.status,
+            gatewayReference: r.gatewayReference,
+            payoutReference: r.payoutReference,
+            payoutChannel: r.payoutChannel,
+            failureReason: r.failureReason,
+            processedAt: r.processedAt ? r.processedAt.toISOString() : null,
+            processedBy: r.processedByUser
+              ? {
+                  id: r.processedByUser.id,
+                  name: processorName ?? 'Admin',
+                  email: r.processedByUser.email,
+                }
+              : null,
+            createdAt: r.createdAt.toISOString(),
+          };
+        }),
+      },
+    };
+  }
+
+  private extractSafeGatewayDetails(gatewayResponse: unknown): SafeGatewayDetails | null {
+    if (!gatewayResponse || typeof gatewayResponse !== 'object') {
+      return null;
+    }
+    const g = gatewayResponse as Record<string, unknown>;
+    const safe: SafeGatewayDetails = {};
+    if (typeof g.bank_tran_id === 'string') safe.bankTranId = g.bank_tran_id;
+    if (typeof g.card_type === 'string') safe.cardType = g.card_type;
+    if (typeof g.card_brand === 'string') safe.cardBrand = g.card_brand;
+    if (typeof g.card_issuer === 'string') safe.cardIssuer = g.card_issuer;
+    if (typeof g.card_no === 'string') safe.cardNo = g.card_no;
+    if (typeof g.status === 'string') safe.gatewayStatus = g.status;
+    return Object.keys(safe).length > 0 ? safe : null;
   }
 }
 

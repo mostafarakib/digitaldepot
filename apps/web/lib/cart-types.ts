@@ -50,6 +50,8 @@ export interface ShippingEstimate {
   amountNeededForFreeShipping: number; // Integer BDT poisha
   freeShippingProgressPercent: number; // 0..100
   isEstimated: boolean;
+  estimatedDaysMin?: number;
+  estimatedDaysMax?: number;
 }
 
 export interface CartData {

@@ -53,6 +53,35 @@ import type {
   AdminProcessRefundResponse,
   AdminReconcileRefundResponse,
 } from './order-types';
+import type {
+  PublicStoreSettings,
+  AdminStoreSettings,
+  UpdateStoreSettingsInput,
+} from './settings-types';
+import type {
+  AdminCustomerListQuery,
+  AdminCustomerListResponse,
+  AdminCustomerDetailResponse,
+  UpdateCustomerStatusInput,
+} from './customer-types';
+import type {
+  AdminPaymentQuery,
+  AdminPaymentListResponse,
+  AdminPaymentDetailResponse,
+} from './payment-types';
+import type {
+  AdminAuditQuery,
+  AdminAuditListResponse,
+  AdminAuditActorsResponse,
+} from './audit-types';
+import type {
+  ReportQuery,
+  SalesReportResponse,
+  FulfillmentReportResponse,
+  InventoryReportResponse,
+  ReturnsReportResponse,
+  OverviewReportResponse,
+} from './report-types';
 
 export class ApiError extends Error {
   code: string;
@@ -1099,5 +1128,168 @@ export async function reconcileAdminReturnRefundApi(
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({}),
     },
+  );
+}
+
+// -------------------------------------------------------------
+// Store Settings & Dynamic Shipping Client Methods (Phase 8A)
+// -------------------------------------------------------------
+
+export async function getPublicStoreSettingsApi(): Promise<PublicStoreSettings> {
+  return apiClient<PublicStoreSettings>('/api/store/settings');
+}
+
+export async function getAdminStoreSettingsApi(): Promise<AdminStoreSettings> {
+  return apiClient<AdminStoreSettings>('/api/admin/settings');
+}
+
+export async function updateAdminStoreSettingsApi(
+  input: UpdateStoreSettingsInput,
+): Promise<AdminStoreSettings> {
+  return apiClient<AdminStoreSettings>('/api/admin/settings', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+// -------------------------------------------------------------
+// Admin Customer Management Client Methods (Phase 8B)
+// -------------------------------------------------------------
+
+export async function getAdminCustomersApi(
+  query: AdminCustomerListQuery = {},
+): Promise<AdminCustomerListResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (query.page) searchParams.set('page', query.page.toString());
+  if (query.limit) searchParams.set('limit', query.limit.toString());
+  if (query.search) searchParams.set('search', query.search);
+  if (query.status && query.status !== 'ALL') searchParams.set('status', query.status);
+  if (query.registeredFrom) searchParams.set('registeredFrom', query.registeredFrom);
+  if (query.registeredTo) searchParams.set('registeredTo', query.registeredTo);
+  if (query.minOrders !== undefined) searchParams.set('minOrders', query.minOrders.toString());
+  if (query.maxOrders !== undefined) searchParams.set('maxOrders', query.maxOrders.toString());
+  if (query.sortBy) searchParams.set('sortBy', query.sortBy);
+
+  const qs = searchParams.toString();
+  return apiClient<AdminCustomerListResponse>(`/api/admin/customers${qs ? `?${qs}` : ''}`);
+}
+
+export async function getAdminCustomerDetailApi(id: string): Promise<AdminCustomerDetailResponse> {
+  return apiClient<AdminCustomerDetailResponse>(`/api/admin/customers/${encodeURIComponent(id)}`);
+}
+
+export async function updateAdminCustomerStatusApi(
+  id: string,
+  input: UpdateCustomerStatusInput,
+): Promise<AdminCustomerDetailResponse> {
+  return apiClient<AdminCustomerDetailResponse>(
+    `/api/admin/customers/${encodeURIComponent(id)}/status`,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
+}
+
+// -------------------------------------------------------------
+// Admin Payment Monitoring Client Methods (Phase 8C)
+// -------------------------------------------------------------
+
+export async function getAdminPaymentsApi(
+  query: AdminPaymentQuery = {},
+): Promise<AdminPaymentListResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (query.page) searchParams.set('page', query.page.toString());
+  if (query.limit) searchParams.set('limit', query.limit.toString());
+  if (query.search) searchParams.set('search', query.search);
+  if (query.status && query.status !== 'ALL') searchParams.set('status', query.status);
+  if (query.method && query.method !== 'ALL') searchParams.set('method', query.method);
+  if (query.dateFrom) searchParams.set('dateFrom', query.dateFrom);
+  if (query.dateTo) searchParams.set('dateTo', query.dateTo);
+  if (query.orderNumber) searchParams.set('orderNumber', query.orderNumber);
+  if (query.customerId) searchParams.set('customerId', query.customerId);
+  if (query.sortBy) searchParams.set('sortBy', query.sortBy);
+
+  const qs = searchParams.toString();
+  return apiClient<AdminPaymentListResponse>(`/api/admin/payments${qs ? `?${qs}` : ''}`);
+}
+
+export async function getAdminPaymentDetailApi(id: string): Promise<AdminPaymentDetailResponse> {
+  return apiClient<AdminPaymentDetailResponse>(`/api/admin/payments/${encodeURIComponent(id)}`);
+}
+
+// -------------------------------------------------------------
+// Admin Audit Log Viewer Client Methods (Phase 8C)
+// -------------------------------------------------------------
+
+export async function getAdminAuditLogsApi(
+  query: AdminAuditQuery = {},
+): Promise<AdminAuditListResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (query.page) searchParams.set('page', query.page.toString());
+  if (query.limit) searchParams.set('limit', query.limit.toString());
+  if (query.category && query.category !== 'ALL') searchParams.set('category', query.category);
+  if (query.actorId) searchParams.set('actorId', query.actorId);
+  if (query.dateFrom) searchParams.set('dateFrom', query.dateFrom);
+  if (query.dateTo) searchParams.set('dateTo', query.dateTo);
+  if (query.search) searchParams.set('search', query.search);
+
+  const qs = searchParams.toString();
+  return apiClient<AdminAuditListResponse>(`/api/admin/audit-logs${qs ? `?${qs}` : ''}`);
+}
+
+export async function getAdminAuditActorsApi(): Promise<AdminAuditActorsResponse> {
+  return apiClient<AdminAuditActorsResponse>('/api/admin/audit-logs/actors');
+}
+
+// -------------------------------------------------------------
+// Admin Business Reporting & Analytics Client Methods (Phase 8D)
+// -------------------------------------------------------------
+
+function buildReportQueryString(query: ReportQuery = {}): string {
+  const searchParams = new URLSearchParams();
+  if (query.preset) searchParams.set('preset', query.preset);
+  if (query.dateFrom) searchParams.set('dateFrom', query.dateFrom);
+  if (query.dateTo) searchParams.set('dateTo', query.dateTo);
+  const qs = searchParams.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export async function getAdminOverviewReportApi(): Promise<OverviewReportResponse> {
+  return apiClient<OverviewReportResponse>('/api/admin/reports/overview');
+}
+
+export async function getAdminSalesReportApi(
+  query: ReportQuery = {},
+): Promise<SalesReportResponse> {
+  return apiClient<SalesReportResponse>(`/api/admin/reports/sales${buildReportQueryString(query)}`);
+}
+
+export async function getAdminFulfillmentReportApi(
+  query: ReportQuery = {},
+): Promise<FulfillmentReportResponse> {
+  return apiClient<FulfillmentReportResponse>(
+    `/api/admin/reports/fulfillment${buildReportQueryString(query)}`,
+  );
+}
+
+export async function getAdminInventoryReportApi(
+  query: ReportQuery = {},
+): Promise<InventoryReportResponse> {
+  return apiClient<InventoryReportResponse>(
+    `/api/admin/reports/inventory${buildReportQueryString(query)}`,
+  );
+}
+
+export async function getAdminReturnsReportApi(
+  query: ReportQuery = {},
+): Promise<ReturnsReportResponse> {
+  return apiClient<ReturnsReportResponse>(
+    `/api/admin/reports/returns${buildReportQueryString(query)}`,
   );
 }

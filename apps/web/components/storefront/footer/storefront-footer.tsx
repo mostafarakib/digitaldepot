@@ -1,13 +1,32 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Logo } from '@/components/common/logo';
-import { MapPin, Mail, Clock, CreditCard, Banknote, ShieldAlert } from 'lucide-react';
+import { MapPin, Mail, Clock, Phone, CreditCard, Banknote, ShieldAlert } from 'lucide-react';
+import { getPublicStoreSettingsApi } from '@/lib/api-client';
+import type { PublicStoreSettings } from '@/lib/settings-types';
 
 export function StorefrontFooter() {
   const t = useTranslations('footer');
   const tCommon = useTranslations('common');
   const currentYear = new Date().getFullYear();
+  const [settings, setSettings] = useState<PublicStoreSettings | null>(null);
+
+  useEffect(() => {
+    let ignore = false;
+    getPublicStoreSettingsApi()
+      .then((data) => {
+        if (!ignore && data) {
+          setSettings(data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   return (
     <footer className="w-full bg-slate-900 text-slate-300 border-t border-slate-800 pt-12 pb-24 md:pb-12 mt-16">
@@ -21,15 +40,21 @@ export function StorefrontFooter() {
             <div className="space-y-2 text-xs text-slate-400 pt-2">
               <div className="flex items-start gap-2">
                 <MapPin className="size-4 text-primary shrink-0 mt-0.5" />
-                <span>{t('locationValue')}</span>
+                <span>{settings?.storeAddress || t('locationValue')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="size-4 text-primary shrink-0" />
-                <span>{t('contactEmail')}</span>
+                <span>{settings?.supportEmail || t('contactEmail')}</span>
               </div>
+              {settings?.supportPhone && (
+                <div className="flex items-center gap-2">
+                  <Phone className="size-4 text-primary shrink-0" />
+                  <span>{settings.supportPhone}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Clock className="size-4 text-primary shrink-0" />
-                <span>{t('contactHours')}</span>
+                <span>{settings?.supportHours || t('contactHours')}</span>
               </div>
             </div>
           </div>
