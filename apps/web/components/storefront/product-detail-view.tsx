@@ -136,7 +136,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
               )}
               {discountPercent !== null && discountPercent > 0 && (
                 <Badge variant="destructive" className="text-xs font-semibold">
-                  -{discountPercent}% OFF
+                  -{discountPercent}%
                 </Badge>
               )}
             </div>
@@ -145,12 +145,13 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
           {/* Thumbnail Selector Strip */}
           {product.images.length > 1 && (
             <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
-              {product.images.map((img) => (
+              {product.images.map((img, idx) => (
                 <button
                   key={img.id}
                   type="button"
                   onClick={() => setSelectedImage(img.url)}
-                  className={`relative size-16 sm:size-20 rounded-xl border-2 overflow-hidden flex-shrink-0 bg-card p-1 transition-all cursor-pointer ${
+                  aria-label={`View image ${idx + 1} of ${product.images.length}`}
+                  className={`relative size-16 sm:size-20 rounded-xl border-2 overflow-hidden flex-shrink-0 bg-card p-1 transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                     selectedImage === img.url
                       ? 'border-primary ring-2 ring-primary/20'
                       : 'border-border hover:border-muted-foreground/40'
@@ -427,11 +428,19 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
       {/* Tabs / Bottom Content: Specifications & Description */}
       <div className="border border-border rounded-2xl bg-card overflow-hidden">
         {/* Tab Headers */}
-        <div className="flex border-b border-border bg-muted/20">
+        <div
+          role="tablist"
+          aria-label="Product Information"
+          className="flex border-b border-border bg-muted/20"
+        >
           <button
             type="button"
+            role="tab"
+            id="tab-specs"
+            aria-selected={activeTab === 'specs'}
+            aria-controls="panel-specs"
             onClick={() => setActiveTab('specs')}
-            className={`px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+            className={`px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               activeTab === 'specs'
                 ? 'border-primary text-primary bg-background'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -441,8 +450,12 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
           </button>
           <button
             type="button"
+            role="tab"
+            id="tab-desc"
+            aria-selected={activeTab === 'desc'}
+            aria-controls="panel-desc"
             onClick={() => setActiveTab('desc')}
-            className={`px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer ${
+            className={`px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               activeTab === 'desc'
                 ? 'border-primary text-primary bg-background'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -452,8 +465,12 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
           </button>
           <button
             type="button"
+            role="tab"
+            id="tab-reviews"
+            aria-selected={activeTab === 'reviews'}
+            aria-controls="panel-reviews"
             onClick={() => setActiveTab('reviews')}
-            className={`px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            className={`px-6 py-3.5 text-sm font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
               activeTab === 'reviews'
                 ? 'border-primary text-primary bg-background'
                 : 'border-transparent text-muted-foreground hover:text-foreground'
@@ -467,7 +484,7 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
         {/* Tab Content */}
         <div className="p-6">
           {activeTab === 'specs' && (
-            <div>
+            <div role="tabpanel" id="panel-specs" aria-labelledby="tab-specs">
               {Object.keys(groupedSpecs).length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">
                   {t('detail.noSpecificationsProvided')}
@@ -504,7 +521,12 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
           )}
 
           {activeTab === 'desc' && (
-            <div className="prose prose-sm dark:prose-invert max-w-none text-foreground leading-relaxed">
+            <div
+              role="tabpanel"
+              id="panel-desc"
+              aria-labelledby="tab-desc"
+              className="prose prose-sm dark:prose-invert max-w-none text-foreground leading-relaxed"
+            >
               {product.description ? (
                 <div className="whitespace-pre-line text-sm text-foreground/90">
                   {product.description}
@@ -518,10 +540,12 @@ export function ProductDetailView({ product }: ProductDetailViewProps) {
           )}
 
           {activeTab === 'reviews' && (
-            <ProductReviewsSection
-              productSlug={product.slug}
-              onReviewCountChange={setReviewCount}
-            />
+            <div role="tabpanel" id="panel-reviews" aria-labelledby="tab-reviews">
+              <ProductReviewsSection
+                productSlug={product.slug}
+                onReviewCountChange={setReviewCount}
+              />
+            </div>
           )}
         </div>
       </div>

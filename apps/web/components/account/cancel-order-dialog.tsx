@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { cancelCustomerOrderApi, ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 import { Loader2, AlertTriangle } from 'lucide-react';
 
 interface CancelOrderDialogProps {
@@ -23,6 +24,14 @@ export function CancelOrderDialog({
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useModalA11y({
+    isOpen,
+    onClose,
+    containerRef: dialogRef,
+    disabled: isSubmitting,
+  });
 
   if (!isOpen) return null;
 
@@ -51,6 +60,7 @@ export function CancelOrderDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in-0 duration-200">
       <div
+        ref={dialogRef}
         className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150"
         role="dialog"
         aria-modal="true"

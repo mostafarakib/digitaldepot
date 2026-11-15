@@ -12,7 +12,7 @@ export async function generateMetadata({
   const { locale, returnNumber } = await params;
   const t = await getTranslations({ locale, namespace: 'returns.details' });
   return {
-    title: `${t('pageTitle')} #${returnNumber} | DigitalDepot`,
+    title: `${t('pageTitle')} #${returnNumber}`,
     description: t('pageSubtitle', { returnNumber }),
   };
 }

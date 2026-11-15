@@ -16,6 +16,7 @@ import { apiClient, ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 import { X, Loader2, AlertCircle, MapPin, CheckCircle2 } from 'lucide-react';
 
 interface AddressFormModalProps {
@@ -49,7 +50,6 @@ export function AddressFormModal({
   const selectedDivisionId = userSelectedDivisionId ?? initialAddress?.divisionId ?? '';
 
   const modalRef = useRef<HTMLDivElement>(null);
-  const previousActiveElement = useRef<HTMLElement | null>(null);
 
   const handleClose = useCallback(() => {
     setUserSelectedDivisionId(null);
@@ -135,43 +135,12 @@ export function AddressFormModal({
   }, [isOpen, initialAddress, reset, isFirstAddress]);
 
   // Focus management & accessible keyboard trap
-  useEffect(() => {
-    if (isOpen) {
-      previousActiveElement.current = document.activeElement as HTMLElement | null;
-
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && !isSubmitting) {
-          e.preventDefault();
-          handleClose();
-          return;
-        }
-
-        if (e.key === 'Tab' && modalRef.current) {
-          const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-            'input:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex="0"]',
-          );
-          if (focusable.length === 0) return;
-
-          const first = focusable[0];
-          const last = focusable[focusable.length - 1];
-
-          if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      };
-
-      document.addEventListener('keydown', handleKeyDown);
-      return () => {
-        document.removeEventListener('keydown', handleKeyDown);
-        previousActiveElement.current?.focus();
-      };
-    }
-  }, [isOpen, isSubmitting, handleClose]);
+  useModalA11y({
+    isOpen,
+    onClose: handleClose,
+    containerRef: modalRef,
+    disabled: isSubmitting,
+  });
 
   // Selected division's districts
   const currentDivision = divisions.find((d) => d.id === selectedDivisionId);

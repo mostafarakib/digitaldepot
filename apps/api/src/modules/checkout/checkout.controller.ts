@@ -37,6 +37,7 @@ export class CheckoutController {
     }
 
     const input = checkoutCodInputSchema.parse(req.body);
+    const locale = input.locale ?? (req.headers['x-locale'] === 'bn' ? 'bn' : 'en');
 
     const order = await orderService.createOrderCore({
       userId: req.user.id,
@@ -45,6 +46,7 @@ export class CheckoutController {
       alternativePhone: input.alternativePhone ?? undefined,
       paymentMethod: 'COD',
       acknowledgedLivePrices: input.acknowledgedLivePrices,
+      locale,
     });
 
     const csrfToken = rotateCsrfToken(res);
@@ -104,6 +106,7 @@ export class CheckoutController {
     }
 
     const input = checkoutOnlineInputSchema.parse(req.body);
+    const locale = input.locale ?? (req.headers['x-locale'] === 'bn' ? 'bn' : 'en');
 
     // 1. Transaction: Create Order, reserve stock for 30 minutes, consume coupon, empty cart
     // createOrderCore handles transaction internally and commits before returning
@@ -114,6 +117,7 @@ export class CheckoutController {
       alternativePhone: input.alternativePhone ?? undefined,
       paymentMethod: 'SSLCOMMERZ',
       acknowledgedLivePrices: input.acknowledgedLivePrices,
+      locale,
     });
 
     const payment = order.payments[0];

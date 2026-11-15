@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { InventoryManager } from '@/components/admin/inventory/inventory-manager';
 
 export const metadata: Metadata = {
-  title: 'Inventory & Stock Management | Admin Dashboard',
+  title: 'Inventory & Stock Management',
   description:
     'Variant-level inventory tracking, atomic stock adjustments, and stock movement audit records.',
 };

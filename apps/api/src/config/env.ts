@@ -21,6 +21,7 @@ export const envSchema = z
     PORT: z.coerce.number().int().positive().default(4000),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
     TEST_DATABASE_URL: z.string().optional(),
+    DB_POOL_MAX: z.coerce.number().int().positive().default(10),
     FRONTEND_URL: z.string().url().default('http://localhost:3000'),
     JWT_ACCESS_SECRET: z
       .string()

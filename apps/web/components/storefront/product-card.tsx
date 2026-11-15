@@ -32,24 +32,27 @@ export function ProductCard({ product }: ProductCardProps) {
   return (
     <div className="group relative flex flex-col bg-card border border-border rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all duration-200">
       {/* Product Image Area */}
-      <Link
-        href={`/products/${product.slug}`}
-        className="relative aspect-square w-full bg-muted/30 overflow-hidden flex items-center justify-center"
-      >
-        {product.primaryImage ? (
-          <Image
-            src={product.primaryImage.url}
-            alt={product.primaryImage.altText || product.name}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-            className="object-contain p-4 group-hover:scale-105 transition-transform duration-300"
-          />
-        ) : (
-          <Package className="size-16 text-muted-foreground/40 stroke-[1.5]" />
-        )}
+      <div className="relative aspect-square w-full bg-muted/30 overflow-hidden flex items-center justify-center">
+        <Link
+          href={`/products/${product.slug}`}
+          aria-label={product.name}
+          className="relative size-full flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          {product.primaryImage ? (
+            <Image
+              src={product.primaryImage.url}
+              alt={product.primaryImage.altText || product.name}
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+              className="object-contain p-4 group-hover:scale-105 transition-transform duration-300"
+            />
+          ) : (
+            <Package className="size-16 text-muted-foreground/40 stroke-[1.5]" />
+          )}
+        </Link>
 
         {/* Badges Overlay */}
-        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
+        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10 pointer-events-none">
           {product.featured && (
             <Badge
               variant="default"
@@ -84,7 +87,7 @@ export function ProductCard({ product }: ProductCardProps) {
           }}
           title={isWishlisted ? tWishlist('removeFromWishlist') : tWishlist('addToWishlist')}
           aria-label={isWishlisted ? tWishlist('removeFromWishlist') : tWishlist('addToWishlist')}
-          className="absolute top-2.5 right-2.5 z-20 size-8 rounded-full bg-background/80 backdrop-blur-xs flex items-center justify-center hover:bg-background transition-colors shadow-xs"
+          className="absolute top-2.5 right-2.5 z-20 size-9 rounded-full bg-background/80 backdrop-blur-xs flex items-center justify-center hover:bg-background transition-colors shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
         >
           <Heart
             className={`size-4 transition-colors ${
@@ -94,7 +97,7 @@ export function ProductCard({ product }: ProductCardProps) {
             }`}
           />
         </button>
-      </Link>
+      </div>
 
       {/* Product Content */}
       <div className="flex flex-col flex-1 p-4">
@@ -145,6 +148,7 @@ export function ProductCard({ product }: ProductCardProps) {
           {/* Quick Add / View Options */}
           {product.variantCount === 1 && product.defaultVariantId && product.isInStock ? (
             <button
+              type="button"
               onClick={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -159,7 +163,7 @@ export function ProductCard({ product }: ProductCardProps) {
               disabled={isAdding}
               title={t('detail.addToCart')}
               aria-label={t('detail.addToCart')}
-              className="size-8 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground flex items-center justify-center transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              className="size-9 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground flex items-center justify-center transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <ShoppingCart className="size-4" />
             </button>
@@ -168,16 +172,17 @@ export function ProductCard({ product }: ProductCardProps) {
               href={`/products/${product.slug}`}
               title={t('listing.viewOptions')}
               aria-label={t('listing.viewOptions')}
-              className="size-8 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground flex items-center justify-center transition-colors cursor-pointer"
+              className="size-9 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground flex items-center justify-center transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <ShoppingCart className="size-4" />
             </Link>
           ) : (
             <button
+              type="button"
               disabled
               title={t('listing.outOfStock')}
               aria-label={t('listing.outOfStock')}
-              className="size-8 rounded-lg bg-muted text-muted-foreground flex items-center justify-center opacity-50 cursor-not-allowed"
+              className="size-9 rounded-lg bg-muted text-muted-foreground flex items-center justify-center opacity-50 cursor-not-allowed"
             >
               <ShoppingCart className="size-4" />
             </button>

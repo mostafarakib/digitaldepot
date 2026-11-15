@@ -29,10 +29,20 @@ import { adminCustomerRouter } from '../modules/customer/customer.routes.js';
 import { adminPaymentRouter } from '../modules/payment/admin-payment.routes.js';
 import { adminAuditRouter } from '../modules/audit/audit.routes.js';
 import adminReportRouter from '../modules/report/report.routes.js';
+import {
+  customerNotificationRouter,
+  adminNotificationRouter,
+} from '../modules/notification/notification.routes.js';
+import { globalApiLimiter } from '../middleware/rate-limiter.js';
 
 const router = Router();
 
+// Health check endpoint (exempt from global rate limiter for monitoring/load balancers)
 router.use('/health', healthRouter);
+
+// Global rate limiter for API endpoints
+router.use(globalApiLimiter);
+
 router.use('/auth', authRouter);
 router.use('/account', accountRouter);
 
@@ -49,6 +59,9 @@ router.use('/checkout', checkoutRouter);
 router.use('/payments', paymentRouter);
 router.use('/orders', orderRouter);
 router.use('/customer/returns', customerReturnRouter);
+
+// Customer notification routes
+router.use('/notifications', customerNotificationRouter);
 
 // Admin catalogue management routes
 router.use('/admin/categories', adminCategoryRouter);
@@ -67,6 +80,7 @@ router.use('/admin/customers', adminCustomerRouter);
 router.use('/admin/payments', adminPaymentRouter);
 router.use('/admin/audit-logs', adminAuditRouter);
 router.use('/admin/reports', adminReportRouter);
+router.use('/admin/notifications', adminNotificationRouter);
 
 // Public settings & store configuration
 router.use('/store/settings', publicSettingsRouter);

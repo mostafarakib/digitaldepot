@@ -24,7 +24,11 @@ export function StorefrontShell({ children }: { children: React.ReactNode }) {
           <StorefrontVerificationBanner />
           <main className="flex-1">{children}</main>
           <StorefrontFooter />
-          <MobileNav isOpen={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} />
+          <MobileNav
+            isOpen={mobileMenuOpen}
+            onClose={() => setMobileMenuOpen(false)}
+            onOpen={() => setMobileMenuOpen(true)}
+          />
           <CartDrawer />
         </div>
       </WishlistProvider>

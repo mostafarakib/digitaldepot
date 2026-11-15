@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useState, useTransition } from 'react';
+import React, { useState, useTransition, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { ProductCard } from './product-card';
+import { ProductGridSkeleton } from './product-card-skeleton';
 import { CatalogueFilters } from './catalogue-filters';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { EmptyState } from '@/components/ui/empty-state';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 import type { StorefrontProductListingResponse, CategoryTreeNode } from '@/lib/catalogue-types';
 import {
   SlidersHorizontal,
@@ -30,6 +33,13 @@ export function ProductListing({ initialData, categories }: ProductListingProps)
   const [isPending, startTransition] = useTransition();
 
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const filterDrawerRef = useRef<HTMLDivElement>(null);
+
+  useModalA11y({
+    isOpen: mobileFilterOpen,
+    onClose: () => setMobileFilterOpen(false),
+    containerRef: filterDrawerRef,
+  });
 
   // Extract current query params
   const currentCategory = searchParams.get('category') || undefined;
@@ -253,27 +263,26 @@ export function ProductListing({ initialData, categories }: ProductListingProps)
 
         {/* Product Cards Grid Area */}
         <div className="md:col-span-3 lg:col-span-4 flex flex-col">
-          {isPending && (
-            <div className="text-xs text-muted-foreground animate-pulse mb-3">
-              {t('listing.loadingResults')}
+          {isPending ? (
+            <div className="space-y-4">
+              <div className="text-xs text-muted-foreground animate-pulse mb-3">
+                {t('listing.loadingResults')}
+              </div>
+              <ProductGridSkeleton count={products.length || 8} />
             </div>
-          )}
-
-          {products.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 px-4 text-center bg-card border border-border rounded-xl">
-              <PackageSearch className="size-12 text-muted-foreground/60 mb-3" />
-              <h3 className="font-semibold text-foreground text-base mb-1">
-                {t('listing.noProductsFound')}
-              </h3>
-              <p className="text-xs sm:text-sm text-muted-foreground max-w-md mb-4">
-                {t('listing.noProductsDescription')}
-              </p>
-              {activeFilterCount > 0 && (
-                <Button variant="outline" size="sm" onClick={handleClearAll}>
-                  {t('filters.clearAll')}
-                </Button>
-              )}
-            </div>
+          ) : products.length === 0 ? (
+            <EmptyState
+              icon={<PackageSearch className="size-8" />}
+              title={t('listing.noProductsFound')}
+              description={t('listing.noProductsDescription')}
+              action={
+                activeFilterCount > 0 ? (
+                  <Button variant="outline" size="sm" onClick={handleClearAll}>
+                    {t('filters.clearAll')}
+                  </Button>
+                ) : undefined
+              }
+            />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {products.map((product) => (
@@ -342,6 +351,10 @@ export function ProductListing({ initialData, categories }: ProductListingProps)
           onClick={() => setMobileFilterOpen(false)}
         >
           <div
+            ref={filterDrawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('filters.title')}
             className="w-full max-w-xs bg-background h-full p-4 overflow-y-auto flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
@@ -351,8 +364,10 @@ export function ProductListing({ initialData, categories }: ProductListingProps)
                 <span>{t('filters.title')}</span>
               </div>
               <button
+                type="button"
                 onClick={() => setMobileFilterOpen(false)}
-                className="p-1 rounded-md hover:bg-muted text-muted-foreground"
+                aria-label={t('filters.clearAll')}
+                className="p-1 rounded-md hover:bg-muted text-muted-foreground cursor-pointer"
               >
                 <X className="size-5" />
               </button>

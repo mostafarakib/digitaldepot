@@ -10,6 +10,8 @@ import { AddressDeleteDialog } from './address-delete-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorState } from '@/components/ui/error-state';
 import {
   MapPin,
   Plus,
@@ -22,6 +24,7 @@ import {
 
 export function AddressManager() {
   const t = useTranslations('auth.addresses');
+  const tCommon = useTranslations('common');
 
   const [addresses, setAddresses] = useState<AddressItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -213,23 +216,17 @@ export function AddressManager() {
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2].map((i) => (
-            <Card key={i} className="border-border animate-pulse">
+            <Card key={i} className="border-border">
               <CardContent className="p-6 space-y-4">
-                <div className="h-5 bg-muted rounded-md w-1/3" />
-                <div className="h-4 bg-muted rounded-md w-1/2" />
-                <div className="h-10 bg-muted rounded-md w-full" />
+                <Skeleton className="h-5 w-1/3 rounded-md" />
+                <Skeleton className="h-4 w-1/2 rounded-md" />
+                <Skeleton className="h-10 w-full rounded-md" />
               </CardContent>
             </Card>
           ))}
         </div>
       ) : loadError ? (
-        <div className="flex flex-col items-center justify-center p-8 border border-border rounded-xl bg-card text-center space-y-3">
-          <AlertCircle className="h-8 w-8 text-destructive" />
-          <p className="text-sm text-foreground font-medium">{loadError}</p>
-          <Button variant="outline" size="sm" onClick={refetchAddresses}>
-            Retry
-          </Button>
-        </div>
+        <ErrorState message={loadError} onRetry={refetchAddresses} retryLabel={tCommon('retry')} />
       ) : addresses.length === 0 ? (
         /* Empty State */
         <div className="flex flex-col items-center justify-center p-12 border border-dashed border-border rounded-2xl bg-muted/10 text-center space-y-4">

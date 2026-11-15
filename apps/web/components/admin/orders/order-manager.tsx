@@ -25,6 +25,7 @@ import type {
 } from '@/lib/order-types';
 import { getAdminOrdersApi } from '@/lib/api-client';
 import { OrderDetailModal } from './order-detail-modal';
+import { AdminTableSkeleton } from '@/components/admin/admin-table-skeleton';
 
 const STATUS_TABS: Array<{
   key: 'ALL' | OrderStatus;
@@ -378,33 +379,38 @@ export function OrderManager() {
 
       {/* Orders Table */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden shadow-xs">
-        {isLoading ? (
-          <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
-            <Loader2 className="size-8 animate-spin text-blue-500" />
-            <p className="text-xs">Loading orders...</p>
-          </div>
-        ) : orders.length === 0 ? (
-          <div className="py-20 flex flex-col items-center justify-center text-center p-4">
-            <Package className="size-10 text-slate-600 mb-2" />
-            <h3 className="text-sm font-semibold text-slate-300">{t('noOrdersFound')}</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm">{t('noOrdersMatching')}</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-slate-800 bg-slate-800/40 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
-                  <th className="py-3 px-4">{t('colOrderNumber')}</th>
-                  <th className="py-3 px-4">{t('colCustomer')}</th>
-                  <th className="py-3 px-4">{t('colDate')}</th>
-                  <th className="py-3 px-4">{t('colStatus')}</th>
-                  <th className="py-3 px-4">{t('colPayment')}</th>
-                  <th className="py-3 px-4">{t('colMethod')}</th>
-                  <th className="py-3 px-4">{t('colTotal')}</th>
-                  <th className="py-3 px-4">{t('colItems')}</th>
-                  <th className="py-3 px-4 text-right">{t('colActions')}</th>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-slate-800 bg-slate-800/40 text-slate-400 font-semibold uppercase tracking-wider text-[11px]">
+                <th className="py-3 px-4">{t('colOrderNumber')}</th>
+                <th className="py-3 px-4">{t('colCustomer')}</th>
+                <th className="py-3 px-4">{t('colDate')}</th>
+                <th className="py-3 px-4">{t('colStatus')}</th>
+                <th className="py-3 px-4">{t('colPayment')}</th>
+                <th className="py-3 px-4">{t('colMethod')}</th>
+                <th className="py-3 px-4">{t('colTotal')}</th>
+                <th className="py-3 px-4">{t('colItems')}</th>
+                <th className="py-3 px-4 text-right">{t('colActions')}</th>
+              </tr>
+            </thead>
+            {isLoading ? (
+              <AdminTableSkeleton columns={9} rows={8} />
+            ) : orders.length === 0 ? (
+              <tbody>
+                <tr>
+                  <td colSpan={9} className="py-20 text-center">
+                    <div className="flex flex-col items-center justify-center">
+                      <Package className="size-10 text-slate-600 mb-2" />
+                      <h3 className="text-sm font-semibold text-slate-300">{t('noOrdersFound')}</h3>
+                      <p className="text-xs text-slate-500 mt-1 max-w-sm">
+                        {t('noOrdersMatching')}
+                      </p>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
+              </tbody>
+            ) : (
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
                 {orders.map((order) => (
                   <tr key={order.id} className="hover:bg-slate-800/30 transition-colors">
@@ -487,9 +493,9 @@ export function OrderManager() {
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
-        )}
+            )}
+          </table>
+        </div>
 
         {/* Pagination Footer */}
         {!isLoading && orders.length > 0 && (

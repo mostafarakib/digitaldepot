@@ -7,6 +7,7 @@ import {
   requireVerifiedEmail,
 } from '../../middleware/auth.js';
 import { csrfProtection } from '../../middleware/csrf.js';
+import { reviewSubmissionLimiter } from '../../middleware/rate-limiter.js';
 import { Role } from '../../generated/client/client.js';
 
 export const productReviewRouter = Router();
@@ -24,6 +25,7 @@ productReviewRouter.post(
   authenticate,
   requireVerifiedEmail,
   csrfProtection,
+  reviewSubmissionLimiter,
   reviewController.submitReview.bind(reviewController),
 );
 

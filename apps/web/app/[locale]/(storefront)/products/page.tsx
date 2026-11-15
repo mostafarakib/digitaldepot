@@ -1,10 +1,62 @@
 import React from 'react';
+import type { Metadata } from 'next';
+import { getTranslations } from 'next-intl/server';
 import { env } from '@/lib/config';
 import { ProductListing } from '@/components/storefront/product-listing';
+import { buildPageAlternates } from '@/lib/seo';
 import type { StorefrontProductListingResponse, CategoryTreeNode } from '@/lib/catalogue-types';
 
 interface ProductsPageProps {
+  params: Promise<{ locale: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export async function generateMetadata({
+  params,
+  searchParams,
+}: ProductsPageProps): Promise<Metadata> {
+  const { locale } = await params;
+  const resolvedParams = await searchParams;
+  const t = await getTranslations({ locale, namespace: 'seo' });
+
+  let title = t('catalogTitle');
+  let description = t('catalogDescription');
+  let isSearch = false;
+
+  const q = resolvedParams.q;
+  const category = resolvedParams.category;
+  const brand = resolvedParams.brand;
+
+  if (typeof q === 'string' && q.trim()) {
+    title = t('searchTitle', { query: q.trim() });
+    description = t('searchDescription', { query: q.trim() });
+    isSearch = true;
+  } else if (typeof category === 'string' && category.trim()) {
+    title = t('categoryTitle', { category: category.trim() });
+    description = t('categoryDescription', { category: category.trim() });
+  } else if (typeof brand === 'string' && brand.trim()) {
+    title = t('brandTitle', { brand: brand.trim() });
+    description = t('brandDescription', { brand: brand.trim() });
+  }
+
+  // Clarification 2: Query-based filters are duplicate-content views with canonical pointing to /products.
+  // Search query results must not be indexed to prevent index bloat.
+  return {
+    title,
+    description,
+    alternates: buildPageAlternates('/products', locale),
+    robots: isSearch ? { index: false, follow: true } : undefined,
+    openGraph: {
+      title,
+      description,
+      url: `/${locale}/products`,
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+    },
+  };
 }
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {

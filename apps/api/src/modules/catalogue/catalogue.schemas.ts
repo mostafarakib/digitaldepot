@@ -3,6 +3,95 @@ import { z } from 'zod';
 export const SLUG_REGEX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
+ * Approved hosts for product images and brand logos (Clarification 3).
+ */
+export const APPROVED_IMAGE_HOSTS = new Set([
+  'res.cloudinary.com',
+  'cloudinary.com',
+  'images.unsplash.com',
+]);
+
+export function isApprovedImageHost(hostname: string): boolean {
+  const lower = hostname.toLowerCase();
+  if (APPROVED_IMAGE_HOSTS.has(lower)) {
+    return true;
+  }
+  // Allow Cloudinary CDN subdomains (e.g. res-1.cloudinary.com, sub.cloudinary.com)
+  // Ensures all domain labels are non-empty and domain strictly ends with exact '.cloudinary.com' boundary
+  const parts = lower.split('.');
+  if (
+    parts.length >= 3 &&
+    parts.every((part) => part.length > 0) &&
+    parts.slice(-2).join('.') === 'cloudinary.com'
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Validates that an image URL uses HTTPS and points to an approved image host.
+ */
+export const secureImageUrlSchema = z
+  .string()
+  .trim()
+  .url('Image URL must be a valid URL')
+  .refine(
+    (val) => {
+      try {
+        const parsed = new URL(val);
+        return parsed.protocol === 'https:' && isApprovedImageHost(parsed.hostname);
+      } catch {
+        return false;
+      }
+    },
+    {
+      message: 'Image URL must use HTTPS and belong to an approved host (e.g. res.cloudinary.com)',
+    },
+  );
+
+/**
+ * Validates that a website URL uses HTTPS and points to a legitimate external domain.
+ */
+export const secureWebsiteUrlSchema = z
+  .string()
+  .trim()
+  .url('Website URL must be a valid URL')
+  .refine(
+    (val) => {
+      try {
+        const parsed = new URL(val);
+        const host = parsed.hostname.toLowerCase();
+        return (
+          parsed.protocol === 'https:' &&
+          host.length > 0 &&
+          !host.includes('localhost') &&
+          !host.startsWith('127.') &&
+          !host.startsWith('169.254.')
+        );
+      } catch {
+        return false;
+      }
+    },
+    { message: 'Website URL must use HTTPS and a valid public domain' },
+  );
+
+/**
+ * Validates that a Cloudinary publicId is safe from directory traversal.
+ */
+export const securePublicIdSchema = z
+  .string()
+  .trim()
+  .max(255, 'Public ID must not exceed 255 characters')
+  .refine(
+    (val) => {
+      if (val.includes('..') || val.includes('\\') || val.includes('\0')) return false;
+      return /^[a-zA-Z0-9_\-./]+$/.test(val);
+    },
+    { message: 'Public ID contains invalid characters or path traversal sequences' },
+  );
+
+/**
  * Normalizes an arbitrary text string into a URL-friendly lowercase kebab-case slug.
  */
 export function generateSlug(text: string): string {
@@ -38,13 +127,7 @@ export const createCategorySchema = z.object({
     .nullable()
     .optional(),
   parentId: z.string().cuid('Parent ID must be a valid CUID').nullable().optional(),
-  imageUrl: z
-    .string()
-    .trim()
-    .url('Image URL must be a valid URL')
-    .nullable()
-    .optional()
-    .or(z.literal('')),
+  imageUrl: secureImageUrlSchema.nullable().optional().or(z.literal('')),
   isActive: z.boolean().optional().default(true),
   displayOrder: z.number().int().min(0, 'Display order must be non-negative').optional().default(0),
 });
@@ -69,13 +152,7 @@ export const updateCategorySchema = z.object({
     .nullable()
     .optional(),
   parentId: z.string().cuid('Parent ID must be a valid CUID').nullable().optional(),
-  imageUrl: z
-    .string()
-    .trim()
-    .url('Image URL must be a valid URL')
-    .nullable()
-    .optional()
-    .or(z.literal('')),
+  imageUrl: secureImageUrlSchema.nullable().optional().or(z.literal('')),
   isActive: z.boolean().optional(),
   displayOrder: z.number().int().min(0, 'Display order must be non-negative').optional(),
 });
@@ -116,26 +193,14 @@ export const createBrandSchema = z.object({
     .regex(SLUG_REGEX, 'Slug must be lowercase alphanumeric characters separated by single hyphens')
     .max(120, 'Slug must not exceed 120 characters')
     .optional(),
-  logoUrl: z
-    .string()
-    .trim()
-    .url('Logo URL must be a valid URL')
-    .nullable()
-    .optional()
-    .or(z.literal('')),
+  logoUrl: secureImageUrlSchema.nullable().optional().or(z.literal('')),
   description: z
     .string()
     .trim()
     .max(1000, 'Description must not exceed 1000 characters')
     .nullable()
     .optional(),
-  websiteUrl: z
-    .string()
-    .trim()
-    .url('Website URL must be a valid URL')
-    .nullable()
-    .optional()
-    .or(z.literal('')),
+  websiteUrl: secureWebsiteUrlSchema.nullable().optional().or(z.literal('')),
   isActive: z.boolean().optional().default(true),
 });
 
@@ -152,26 +217,14 @@ export const updateBrandSchema = z.object({
     .regex(SLUG_REGEX, 'Slug must be lowercase alphanumeric characters separated by single hyphens')
     .max(120, 'Slug must not exceed 120 characters')
     .optional(),
-  logoUrl: z
-    .string()
-    .trim()
-    .url('Logo URL must be a valid URL')
-    .nullable()
-    .optional()
-    .or(z.literal('')),
+  logoUrl: secureImageUrlSchema.nullable().optional().or(z.literal('')),
   description: z
     .string()
     .trim()
     .max(1000, 'Description must not exceed 1000 characters')
     .nullable()
     .optional(),
-  websiteUrl: z
-    .string()
-    .trim()
-    .url('Website URL must be a valid URL')
-    .nullable()
-    .optional()
-    .or(z.literal('')),
+  websiteUrl: secureWebsiteUrlSchema.nullable().optional().or(z.literal('')),
   isActive: z.boolean().optional(),
 });
 
@@ -434,8 +487,8 @@ export const updateVariantSchema = z.object({
 });
 
 export const createImageSchema = z.object({
-  url: z.string().trim().url('Image URL must be a valid URL'),
-  publicId: z.string().trim().max(255).nullable().optional(),
+  url: secureImageUrlSchema,
+  publicId: securePublicIdSchema.nullable().optional(),
   altText: z.string().trim().max(255).nullable().optional(),
   displayOrder: z.number().int().min(0).optional().default(0),
   isPrimary: z.boolean().optional().default(false),

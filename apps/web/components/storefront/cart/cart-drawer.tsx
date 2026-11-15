@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { useCart } from './cart-provider';
 import { formatPoishaToBDT } from '@/lib/utils';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 import {
   X,
   ShoppingCart,
@@ -23,6 +24,13 @@ export function CartDrawer() {
   const t = useTranslations('cart');
   const tCommon = useTranslations('common');
   const { cart, isDrawerOpen, closeDrawer, updateQuantity, removeItem } = useCart();
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  useModalA11y({
+    isOpen: isDrawerOpen,
+    onClose: closeDrawer,
+    containerRef: drawerRef,
+  });
 
   if (!isDrawerOpen) return null;
 
@@ -41,7 +49,13 @@ export function CartDrawer() {
 
       {/* Drawer Panel */}
       <div className="fixed inset-y-0 right-0 flex max-w-full pl-10">
-        <div className="w-screen max-w-md bg-background shadow-2xl flex flex-col border-l border-border">
+        <div
+          ref={drawerRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('title')}
+          className="w-screen max-w-md bg-background shadow-2xl flex flex-col border-l border-border"
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-muted/20">
             <div className="flex items-center gap-2.5">

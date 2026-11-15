@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { ProductManager } from '@/components/admin/products/product-manager';
 
 export const metadata: Metadata = {
-  title: 'Product & Variant Management | Admin Dashboard',
+  title: 'Product & Variant Management',
   description: 'Manage catalogue products, variants, pricing, specifications, and images.',
 };
 

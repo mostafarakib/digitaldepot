@@ -155,6 +155,46 @@ describe('Email Service & Transports Unit Tests', () => {
       expect(init.signal).toBeDefined();
     });
 
+    it('forwards Idempotency-Key header to Resend API and clamps keys exceeding 256 characters', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ id: 'email_123' }),
+      });
+      globalThis.fetch = mockFetch;
+
+      const transport = new ResendTransport({
+        apiKey: 're_test_key_12345',
+        from: 'DigitalDepot <noreply@digitaldepot.com>',
+      });
+
+      // 1. Valid key within 256 chars
+      await transport.send({
+        to: 'user@example.com',
+        subject: 'Order Confirmed',
+        html: '<p>Confirmed</p>',
+        text: 'Confirmed',
+        idempotencyKey: 'email:order-confirmed:cuid-123',
+      });
+
+      let [, init] = mockFetch.mock.calls[0];
+      expect(init.headers['Idempotency-Key']).toBe('email:order-confirmed:cuid-123');
+
+      // 2. Key exceeding 256 chars gets clamped to 256
+      const longKey = 'k'.repeat(300);
+      await transport.send({
+        to: 'user@example.com',
+        subject: 'Order Confirmed',
+        html: '<p>Confirmed</p>',
+        text: 'Confirmed',
+        headers: { 'Idempotency-Key': longKey },
+      });
+
+      [, init] = mockFetch.mock.calls[1];
+      expect(init.headers['Idempotency-Key']).toBe('k'.repeat(256));
+      expect(init.headers['Idempotency-Key'].length).toBe(256);
+    });
+
     it('handles HTTP error responses from Resend gracefully with sanitized error', async () => {
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,

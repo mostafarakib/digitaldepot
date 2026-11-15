@@ -8,9 +8,30 @@ import v1Router from './routes/index.js';
 
 const app = express();
 
+function parseTrustProxy(value: string): boolean | number | string {
+  if (value === 'false') return false;
+  if (value === 'true') return true;
+  if (/^\d+$/.test(value)) return parseInt(value, 10);
+  return value; // 'loopback', 'linklocal', or IP/CIDR list
+}
+
+// Disable Express fingerprint header
+app.disable('x-powered-by');
+
 // Safeguard 10: Configure trust proxy safely and precisely
-// In dev: 'loopback'. In production behind 1 reverse proxy: 1.
-app.set('trust proxy', env.TRUST_PROXY === 'loopback' ? 'loopback' : Number(env.TRUST_PROXY) || 1);
+// In dev: 'loopback'. In production behind 1 reverse proxy: 1. When exposed directly: false.
+app.set('trust proxy', parseTrustProxy(env.TRUST_PROXY));
+
+// Security Headers Middleware
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+  }
+  next();
+});
 
 // CORS — restrict to the trusted frontend origin with credentials
 app.use(
@@ -26,11 +47,11 @@ app.use(
 // Cookie parsing
 app.use(cookieParser());
 
-// Parse JSON request bodies
-app.use(express.json());
+// Parse JSON request bodies with explicit bounded limit
+app.use(express.json({ limit: '1mb' }));
 
-// Parse URL-encoded request bodies (for payment gateway callbacks)
-app.use(express.urlencoded({ extended: true }));
+// Parse URL-encoded request bodies with explicit bounded limit (for payment gateway callbacks)
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Request logging (sanitized by Pino redaction)
 app.use((req: Request, _res: Response, next: NextFunction) => {

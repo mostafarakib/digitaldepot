@@ -29,6 +29,21 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     return;
   }
 
+  // Handle payload too large errors thrown by express body-parser
+  if (
+    (err as { type?: string }).type === 'entity.too.large' ||
+    (err as { status?: number }).status === 413
+  ) {
+    res.status(413).json({
+      success: false,
+      error: {
+        code: 'PAYLOAD_TOO_LARGE',
+        message: 'Request payload exceeds the maximum allowed size (1MB)',
+      },
+    });
+    return;
+  }
+
   logger.error(
     {
       err: { message: err.message, name: err.name, stack: err.stack },

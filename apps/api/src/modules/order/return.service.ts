@@ -13,6 +13,7 @@ import {
 import { generateReturnNumber, generateRefundNumber } from './order.utils.js';
 import { MAX_ORDER_NUMBER_GENERATION_RETRIES } from './order.constants.js';
 import { sslcommerzService } from '../payment/sslcommerz.service.js';
+import { notificationService } from '../notification/notification.service.js';
 import type {
   CreateReturnInput,
   CustomerReturnListQuery,
@@ -906,6 +907,12 @@ export class ReturnService {
         },
       });
 
+      // Dispatch in-app notification & transactional return approved email (Phase 9B)
+      await notificationService.sendReturnStatusNotification(
+        { returnRequestId: locked.id, status: 'APPROVED' },
+        tx,
+      );
+
       return await this.fetchAdminReturnDetailInTx(tx, returnNumber);
     });
   }
@@ -967,6 +974,12 @@ export class ReturnService {
           },
         },
       });
+
+      // Dispatch in-app notification & transactional return rejected email (Phase 9B)
+      await notificationService.sendReturnStatusNotification(
+        { returnRequestId: locked.id, status: 'REJECTED', reason: rejectionReason },
+        tx,
+      );
 
       return await this.fetchAdminReturnDetailInTx(tx, returnNumber);
     });
@@ -1758,7 +1771,7 @@ export class ReturnService {
           );
         }
 
-        await tx.refund.create({
+        const createdRefund = await tx.refund.create({
           data: {
             refundNumber,
             returnRequestId: returnRequest.id,
@@ -1799,6 +1812,12 @@ export class ReturnService {
           tx,
           returnRequest.orderId,
           selectedPayment.id,
+        );
+
+        // Dispatch in-app notification & transactional refund email (Phase 9B)
+        await notificationService.sendRefundProcessedNotification(
+          { refundId: createdRefund.id },
+          tx,
         );
       }
     });
@@ -1864,6 +1883,12 @@ export class ReturnService {
         });
 
         await this.checkAndUpdatePaymentAndOrderStatus(tx, initial.orderId, refundRecord.paymentId);
+
+        // Dispatch in-app notification & transactional refund email (Phase 9B)
+        await notificationService.sendRefundProcessedNotification(
+          { refundId: refundRecord.id },
+          tx,
+        );
       } else if (gatewayResult.status === 'FAILED') {
         await tx.refund.update({
           where: { id: refundRecord.id },
@@ -1980,6 +2005,12 @@ export class ReturnService {
         });
 
         await this.checkAndUpdatePaymentAndOrderStatus(tx, initial.orderId, lockedRefund.paymentId);
+
+        // Dispatch in-app notification & transactional refund email (Phase 9B)
+        await notificationService.sendRefundProcessedNotification(
+          { refundId: lockedRefund.id },
+          tx,
+        );
       } else if (queryResult.status === 'FAILED') {
         await tx.refund.update({
           where: { id: lockedRefund.id },

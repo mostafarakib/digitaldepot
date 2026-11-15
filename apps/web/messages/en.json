@@ -36,7 +36,18 @@
     "browseDisplays": "Browse Displays",
     "browseAccessories": "Browse Accessories",
     "browseNetworking": "Browse Networking",
-    "browseWearables": "Browse Wearables"
+    "browseWearables": "Browse Wearables",
+    "retry": "Retry",
+    "tryAgain": "Try Again",
+    "loading": "Loading...",
+    "errorTitle": "Something went wrong",
+    "close": "Close",
+    "backToOrders": "Back to Orders",
+    "backToReturns": "Back to Returns",
+    "cartWithCount": "Cart ({count} items)",
+    "wishlistWithCount": "Wishlist ({count} items)",
+    "orderNotFound": "Order not found",
+    "returnNotFound": "Return request not found"
   },
   "nav": {
     "home": "Home",
@@ -1677,6 +1688,7 @@
       "adminPortal": "Admin Dashboard",
       "orders": "Orders",
       "returns": "Returns & Refunds",
+      "notifications": "Notifications",
       "signOut": "Sign Out"
     },
     "validation": {
@@ -2138,5 +2150,41 @@
       "successToast": "Return request #{returnNumber} has been successfully cancelled.",
       "errorToast": "Failed to cancel return request. Please try again."
     }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "pageTitle": "Notifications",
+    "pageDescription": "Stay updated on order status, return evaluations, refunds, and important alerts.",
+    "unread": "unread",
+    "markAllAsRead": "Mark all as read",
+    "markAsRead": "Mark as read",
+    "delete": "Delete",
+    "viewDetails": "View Details",
+    "viewAll": "View all notifications",
+    "loading": "Loading notifications...",
+    "noNotifications": "No notifications yet",
+    "noNotificationsDesc": "You will receive updates here when there is activity on your orders or account.",
+    "allCaughtUp": "All caught up!",
+    "allCaughtUpDesc": "You have no unread notifications.",
+    "all": "All",
+    "showing": "Showing {start} to {end} of {total} notifications",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "seo": {
+    "defaultTitle": "DigitalDepot — Premium Electronics & Tech Store",
+    "defaultDescription": "Single-retailer e-commerce platform for electronics and consumer technology in Bangladesh. Authentic laptops, smartphones, accessories with warranty support.",
+    "homeTitle": "Home — Premium Electronics & Tech in Bangladesh",
+    "homeDescription": "Discover authentic smartphones, computing hardware, audio gear, and consumer technology in Bangladesh with official warranty.",
+    "catalogTitle": "Electronics & Tech Catalogue",
+    "catalogDescription": "Browse our curated collection of computing hardware, smartphones, and accessories with nationwide delivery.",
+    "searchTitle": "Search: {query}",
+    "searchDescription": "Search results for \"{query}\" at DigitalDepot.",
+    "categoryTitle": "{category} — Electronics & Tech",
+    "categoryDescription": "Shop authentic {category} at DigitalDepot with official warranty and fast delivery across Bangladesh.",
+    "brandTitle": "{brand} Products & Gear",
+    "brandDescription": "Explore authentic {brand} devices and accessories at DigitalDepot in Bangladesh.",
+    "productNotFound": "Product Not Found",
+    "productNotFoundDesc": "The requested product is no longer available or does not exist."
   }
 }

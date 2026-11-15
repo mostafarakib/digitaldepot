@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Package,
   RotateCcw,
+  Bell,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
@@ -173,6 +174,15 @@ export function UserMenu() {
                 >
                   <RotateCcw className="size-4 text-muted-foreground" />
                   <span>{t('returns')}</span>
+                </Link>
+                <Link
+                  href="/account/notifications"
+                  role="menuitem"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-md hover:bg-muted transition-colors"
+                >
+                  <Bell className="size-4 text-muted-foreground" />
+                  <span>{t('notifications')}</span>
                 </Link>
               </>
             )}

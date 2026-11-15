@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { ReturnManager } from '@/components/admin/returns/return-manager';
 
 export const metadata: Metadata = {
-  title: 'Returns & Restocking | Admin Dashboard',
+  title: 'Returns & Restocking',
   description:
     'Review customer return requests, inspect returned physical merchandise, and restock inventory.',
 };

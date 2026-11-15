@@ -63,6 +63,7 @@ export interface CreateOrderCoreInput {
   acknowledgedLivePrices?: boolean;
   paymentMethod: PaymentMethod;
   adminUserId?: string; // If placed/assisted by admin
+  locale?: 'en' | 'bn';
 }
 
 export interface OrderStockItem {

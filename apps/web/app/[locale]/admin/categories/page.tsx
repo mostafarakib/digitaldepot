@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { CategoryBrandManager } from '@/components/admin/catalogue/category-brand-manager';
 
 export const metadata: Metadata = {
-  title: 'Category & Brand Management | Admin Dashboard',
+  title: 'Category & Brand Management',
   description: 'Manage catalogue categories, hierarchical taxonomy, and brand associations.',
 };
 

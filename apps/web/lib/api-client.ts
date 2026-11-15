@@ -82,6 +82,14 @@ import type {
   ReturnsReportResponse,
   OverviewReportResponse,
 } from './report-types';
+import type {
+  NotificationItem,
+  NotificationListResponse,
+  NotificationUnreadCountResponse,
+  AdminDeliveryLogItem,
+  AdminDeliveryLogListResponse,
+  AdminRetryDeliveryResponse,
+} from './notification-types';
 
 export class ApiError extends Error {
   code: string;
@@ -1291,5 +1299,72 @@ export async function getAdminReturnsReportApi(
 ): Promise<ReturnsReportResponse> {
   return apiClient<ReturnsReportResponse>(
     `/api/admin/reports/returns${buildReportQueryString(query)}`,
+  );
+}
+
+// -------------------------------------------------------------
+// In-App Notifications & Delivery Tracking (Phase 9A)
+// -------------------------------------------------------------
+
+export async function getUserNotificationsApi(query?: {
+  page?: number;
+  limit?: number;
+  unreadOnly?: boolean;
+}): Promise<NotificationListResponse> {
+  const params = new URLSearchParams();
+  if (query?.page) params.set('page', String(query.page));
+  if (query?.limit) params.set('limit', String(query.limit));
+  if (query?.unreadOnly !== undefined) params.set('unreadOnly', String(query.unreadOnly));
+  const qs = params.toString();
+  return apiClient<NotificationListResponse>(`/api/notifications${qs ? `?${qs}` : ''}`);
+}
+
+export async function getUnreadNotificationCountApi(): Promise<NotificationUnreadCountResponse> {
+  return apiClient<NotificationUnreadCountResponse>('/api/notifications/unread-count');
+}
+
+export async function markNotificationReadApi(id: string): Promise<NotificationItem> {
+  return apiClient<NotificationItem>(`/api/notifications/${id}/read`, {
+    method: 'PATCH',
+  });
+}
+
+export async function markAllNotificationsReadApi(): Promise<{ count: number }> {
+  return apiClient<{ count: number }>('/api/notifications/read-all', {
+    method: 'POST',
+  });
+}
+
+export async function deleteNotificationApi(id: string): Promise<{ success: boolean }> {
+  return apiClient<{ success: boolean }>(`/api/notifications/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getAdminDeliveryLogsApi(query?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  channel?: string;
+  search?: string;
+}): Promise<AdminDeliveryLogListResponse> {
+  const params = new URLSearchParams();
+  if (query?.page) params.set('page', String(query.page));
+  if (query?.limit) params.set('limit', String(query.limit));
+  if (query?.status) params.set('status', query.status);
+  if (query?.channel) params.set('channel', query.channel);
+  if (query?.search) params.set('search', query.search);
+  const qs = params.toString();
+  return apiClient<AdminDeliveryLogListResponse>(
+    `/api/admin/notifications/delivery-logs${qs ? `?${qs}` : ''}`,
+  );
+}
+
+export async function retryAdminDeliveryApi(id: string): Promise<AdminRetryDeliveryResponse> {
+  return apiClient<AdminRetryDeliveryResponse>(
+    `/api/admin/notifications/delivery-logs/${id}/retry`,
+    {
+      method: 'POST',
+    },
   );
 }

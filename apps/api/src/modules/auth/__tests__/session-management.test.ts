@@ -8,6 +8,7 @@ import { env } from '../../../config/env.js';
 import { cleanDatabase, testPool, extractCookies } from '../../../test/setup.js';
 import { hashPassword, hashToken, generateOpaqueToken } from '../../../lib/crypto.js';
 import { securityTokenService } from '../security-token.service.js';
+import { setRateLimitingEnabledForTesting } from '../../../middleware/rate-limiter.js';
 
 describe('Phase 3C-4: Password Change & Session Management Integration Tests', () => {
   beforeEach(async () => {
@@ -705,38 +706,41 @@ describe('Phase 3C-4: Password Change & Session Management Integration Tests', (
     });
 
     it('enforces changePasswordLimiter: 6th attempt within 15 min is rejected with 429', async () => {
-      await createTestCustomer('rate-limit-pw@example.com', 'OldPassword123!');
-      const auth = await loginCustomer('rate-limit-pw@example.com', 'OldPassword123!');
+      setRateLimitingEnabledForTesting(true);
+      try {
+        await createTestCustomer('rate-limit-pw@example.com', 'OldPassword123!');
+        const auth = await loginCustomer('rate-limit-pw@example.com', 'OldPassword123!');
 
-      // 5 failed attempts
-      for (let i = 0; i < 5; i++) {
-        const res = await request(app)
+        // 5 failed attempts
+        for (let i = 0; i < 5; i++) {
+          const res = await request(app)
+            .post('/api/v1/auth/change-password')
+            .set('Origin', env.FRONTEND_URL)
+            .set('Cookie', auth.cookieHeader)
+            .set('x-csrf-token', auth.csrfHeader)
+            .send({
+              currentPassword: 'WrongPassword!',
+              newPassword: 'NewPassword456!',
+            });
+          expect(res.status).toBe(401);
+        }
+
+        // 6th attempt blocked with 429
+        const blockedRes = await request(app)
           .post('/api/v1/auth/change-password')
           .set('Origin', env.FRONTEND_URL)
           .set('Cookie', auth.cookieHeader)
           .set('x-csrf-token', auth.csrfHeader)
-          .set('x-test-rate-limit', 'true')
           .send({
-            currentPassword: 'WrongPassword!',
+            currentPassword: 'OldPassword123!',
             newPassword: 'NewPassword456!',
           });
-        expect(res.status).toBe(401);
+
+        expect(blockedRes.status).toBe(429);
+        expect(blockedRes.body.error.code).toBe('TOO_MANY_REQUESTS');
+      } finally {
+        setRateLimitingEnabledForTesting(false);
       }
-
-      // 6th attempt blocked with 429
-      const blockedRes = await request(app)
-        .post('/api/v1/auth/change-password')
-        .set('Origin', env.FRONTEND_URL)
-        .set('Cookie', auth.cookieHeader)
-        .set('x-csrf-token', auth.csrfHeader)
-        .set('x-test-rate-limit', 'true')
-        .send({
-          currentPassword: 'OldPassword123!',
-          newPassword: 'NewPassword456!',
-        });
-
-      expect(blockedRes.status).toBe(429);
-      expect(blockedRes.body.error.code).toBe('TOO_MANY_REQUESTS');
     });
   });
 

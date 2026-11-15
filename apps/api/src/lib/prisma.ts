@@ -30,7 +30,7 @@ if (env.NODE_ENV === 'test') {
 // Explicit connection pool configuration for PostgreSQL
 export const pool = new pg.Pool({
   connectionString,
-  max: 10,
+  max: env.DB_POOL_MAX,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });

@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/routing';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 import {
   LayoutDashboard,
   Package,
@@ -40,8 +41,23 @@ export function AdminSidebar({
 }: AdminSidebarProps) {
   const t = useTranslations('admin.sidebar');
   const pathname = usePathname();
+  const mobileDrawerRef = useRef<HTMLDivElement>(null);
 
-  const navigation = [
+  useModalA11y({
+    isOpen: mobileOpen,
+    onClose: onCloseMobile,
+    containerRef: mobileDrawerRef,
+  });
+
+  const navigation: Array<{
+    group: string;
+    items: Array<{
+      href: string;
+      label: string;
+      icon: React.ComponentType<{ className?: string }>;
+      badge?: string;
+    }>;
+  }> = [
     {
       group: t('groups.core'),
       items: [{ href: '/admin', label: t('overview'), icon: LayoutDashboard }],
@@ -57,7 +73,7 @@ export function AdminSidebar({
     {
       group: t('groups.operations'),
       items: [
-        { href: '/admin/orders', label: t('orders'), icon: ShoppingBag, badge: '14' },
+        { href: '/admin/orders', label: t('orders'), icon: ShoppingBag },
         { href: '/admin/returns', label: t('returns'), icon: RotateCcw },
         { href: '/admin/payments', label: t('payments'), icon: CreditCard },
         { href: '/admin/reports', label: t('reports'), icon: BarChart3 },
@@ -193,7 +209,15 @@ export function AdminSidebar({
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="fixed inset-0 bg-black/70 backdrop-blur-xs" onClick={onCloseMobile} />
-          <div className="relative w-64 max-w-xs h-full z-10">{sidebarContent}</div>
+          <div
+            ref={mobileDrawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('operationsSuite')}
+            className="relative w-64 max-w-xs h-full z-10"
+          >
+            {sidebarContent}
+          </div>
         </div>
       )}
     </>

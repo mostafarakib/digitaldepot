@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 import {
   Home,
   Grid,
@@ -26,14 +27,22 @@ import { useCart } from '@/components/storefront/cart/cart-provider';
 interface MobileNavProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpen?: () => void;
 }
 
-export function MobileNav({ isOpen, onClose }: MobileNavProps) {
+export function MobileNav({ isOpen, onClose, onOpen }: MobileNavProps) {
   const tCommon = useTranslations('common');
   const tNav = useTranslations('nav');
   const { itemCount: wishlistCount } = useWishlist();
   const { cart, openDrawer } = useCart();
   const cartCount = cart?.totalQuantity ?? 0;
+  const drawerRef = useRef<HTMLDivElement>(null);
+
+  useModalA11y({
+    isOpen,
+    onClose,
+    containerRef: drawerRef,
+  });
 
   const categories = [
     { id: 'smartphones', label: tNav('smartphones'), icon: Smartphone },
@@ -58,8 +67,10 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
         </Link>
 
         <button
-          onClick={onClose}
+          type="button"
+          onClick={onOpen || onClose}
           className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 cursor-pointer"
+          aria-label={tNav('allCategories')}
         >
           <Grid className="size-5" />
           <span>{tNav('allCategories')}</span>
@@ -111,7 +122,13 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
           />
 
           {/* Drawer content */}
-          <div className="relative w-4/5 max-w-sm bg-background border-r border-border h-full flex flex-col p-5 shadow-2xl z-10 overflow-y-auto">
+          <div
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={tNav('allCategories')}
+            className="relative w-4/5 max-w-sm bg-background border-r border-border h-full flex flex-col p-5 shadow-2xl z-10 overflow-y-auto"
+          >
             <div className="flex items-center justify-between pb-4 border-b border-border">
               <span className="font-semibold text-sm flex items-center gap-2">
                 <ShieldCheck className="size-4 text-primary" />
@@ -122,7 +139,7 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
                 size="icon"
                 onClick={onClose}
                 className="size-8"
-                aria-label="Close menu"
+                aria-label={tCommon('close')}
               >
                 <X className="size-4" />
               </Button>
@@ -132,14 +149,15 @@ export function MobileNav({ isOpen, onClose }: MobileNavProps) {
               {categories.map((cat) => {
                 const Icon = cat.icon;
                 return (
-                  <div
+                  <Link
                     key={cat.id}
+                    href={`/products?category=${cat.id}`}
                     onClick={onClose}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-muted/70 transition-colors cursor-pointer"
                   >
                     <Icon className="size-4 text-primary" />
                     <span>{cat.label}</span>
-                  </div>
+                  </Link>
                 );
               })}
             </div>

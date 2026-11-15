@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { VerifyEmailContent } from '@/components/auth/verify-email-content';
 import { Loader2 } from 'lucide-react';
+import { buildNoIndexRobots } from '@/lib/seo';
 
 export async function generateMetadata({
   params,
@@ -15,6 +16,7 @@ export async function generateMetadata({
     title: t('pageTitle'),
     description: t('pageDescription'),
     referrer: 'no-referrer',
+    robots: buildNoIndexRobots(),
   };
 }
 

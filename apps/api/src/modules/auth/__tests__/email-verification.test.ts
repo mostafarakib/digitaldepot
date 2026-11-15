@@ -11,6 +11,7 @@ import { ConsoleTransport } from '../../email/transports/console.transport.js';
 import { hashPassword } from '../../../lib/crypto.js';
 import { securityTokenService } from '../security-token.service.js';
 import { requireVerifiedEmail } from '../../../middleware/auth.js';
+import { setRateLimitingEnabledForTesting } from '../../../middleware/rate-limiter.js';
 import type { Request, Response } from 'express';
 
 describe('Email Verification & Account Security Integration Tests', () => {
@@ -287,32 +288,35 @@ describe('Email Verification & Account Security Integration Tests', () => {
     });
 
     it('enforces verifyEmailIpLimiter: 11th verification attempt from same IP is rejected with 429', async () => {
-      const csrfHeaders = getCsrfHeaders();
+      setRateLimitingEnabledForTesting(true);
+      try {
+        const csrfHeaders = getCsrfHeaders();
 
-      for (let i = 1; i <= 10; i++) {
-        const res = await request(app)
+        for (let i = 1; i <= 10; i++) {
+          const res = await request(app)
+            .post('/api/v1/auth/verify-email')
+            .set('Origin', csrfHeaders.Origin)
+            .set('Cookie', csrfHeaders.Cookie)
+            .set('x-csrf-token', csrfHeaders['x-csrf-token'])
+            .send({ token: `dummy-token-${i}` });
+          // Fails with 400 (invalid token), but allowed through rate limiter
+          expect(res.status).toBe(400);
+        }
+
+        // 11th attempt from same IP is rejected by verifyEmailIpLimiter with 429
+        const res11 = await request(app)
           .post('/api/v1/auth/verify-email')
           .set('Origin', csrfHeaders.Origin)
           .set('Cookie', csrfHeaders.Cookie)
           .set('x-csrf-token', csrfHeaders['x-csrf-token'])
-          .set('x-test-rate-limit', 'true')
-          .send({ token: `dummy-token-${i}` });
-        // Fails with 400 (invalid token), but allowed through rate limiter
-        expect(res.status).toBe(400);
+          .send({ token: 'dummy-token-11' });
+
+        expect(res11.status).toBe(429);
+        expect(res11.body.error.code).toBe('TOO_MANY_REQUESTS');
+        expect(res11.body.error.message).toContain('Too many email verification attempts');
+      } finally {
+        setRateLimitingEnabledForTesting(false);
       }
-
-      // 11th attempt from same IP is rejected by verifyEmailIpLimiter with 429
-      const res11 = await request(app)
-        .post('/api/v1/auth/verify-email')
-        .set('Origin', csrfHeaders.Origin)
-        .set('Cookie', csrfHeaders.Cookie)
-        .set('x-csrf-token', csrfHeaders['x-csrf-token'])
-        .set('x-test-rate-limit', 'true')
-        .send({ token: 'dummy-token-11' });
-
-      expect(res11.status).toBe(429);
-      expect(res11.body.error.code).toBe('TOO_MANY_REQUESTS');
-      expect(res11.body.error.message).toContain('Too many email verification attempts');
     });
   });
 
@@ -412,31 +416,34 @@ describe('Email Verification & Account Security Integration Tests', () => {
     it('enforces resendVerificationIpLimiter: 11th request from same IP is rejected with 429', async () => {
       const csrfHeaders = getCsrfHeaders();
 
-      for (let i = 1; i <= 10; i++) {
-        const res = await request(app)
+      setRateLimitingEnabledForTesting(true);
+      try {
+        for (let i = 1; i <= 10; i++) {
+          const res = await request(app)
+            .post('/api/v1/auth/resend-verification')
+            .set('Origin', csrfHeaders.Origin)
+            .set('Cookie', csrfHeaders.Cookie)
+            .set('x-csrf-token', csrfHeaders['x-csrf-token'])
+            .send({ email: `random_${i}@example.com` });
+          expect(res.status).toBe(200);
+        }
+
+        // 11th attempt from same IP is blocked by resendVerificationIpLimiter
+        const res11 = await request(app)
           .post('/api/v1/auth/resend-verification')
           .set('Origin', csrfHeaders.Origin)
           .set('Cookie', csrfHeaders.Cookie)
           .set('x-csrf-token', csrfHeaders['x-csrf-token'])
-          .set('x-test-rate-limit', 'true')
-          .send({ email: `random_${i}@example.com` });
-        expect(res.status).toBe(200);
+          .send({ email: 'random_11@example.com' });
+
+        expect(res11.status).toBe(429);
+        expect(res11.body.error.code).toBe('TOO_MANY_REQUESTS');
+        expect(res11.body.error.message).toContain(
+          'Too many verification email requests from this network',
+        );
+      } finally {
+        setRateLimitingEnabledForTesting(false);
       }
-
-      // 11th attempt from same IP is blocked by resendVerificationIpLimiter
-      const res11 = await request(app)
-        .post('/api/v1/auth/resend-verification')
-        .set('Origin', csrfHeaders.Origin)
-        .set('Cookie', csrfHeaders.Cookie)
-        .set('x-csrf-token', csrfHeaders['x-csrf-token'])
-        .set('x-test-rate-limit', 'true')
-        .send({ email: 'random_11@example.com' });
-
-      expect(res11.status).toBe(429);
-      expect(res11.body.error.code).toBe('TOO_MANY_REQUESTS');
-      expect(res11.body.error.message).toContain(
-        'Too many verification email requests from this network',
-      );
     });
 
     it('resilience: returns generic 200 message and does not crash when email service fails', async () => {

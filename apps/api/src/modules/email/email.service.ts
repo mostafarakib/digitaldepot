@@ -8,6 +8,21 @@ import { ConsoleTransport } from './transports/console.transport.js';
 import { ResendTransport } from './transports/resend.transport.js';
 import { renderVerificationEmail } from './templates/verification-email.js';
 import { renderPasswordResetEmail } from './templates/password-reset-email.js';
+import {
+  renderOrderConfirmedEmail,
+  type RenderedEmail,
+} from './templates/order-confirmed-email.js';
+import { renderOrderStatusEmail } from './templates/order-status-email.js';
+import { renderReturnStatusEmail } from './templates/return-status-email.js';
+import { renderRefundProcessedEmail } from './templates/refund-processed-email.js';
+
+export {
+  renderOrderConfirmedEmail,
+  renderOrderStatusEmail,
+  renderReturnStatusEmail,
+  renderRefundProcessedEmail,
+  type RenderedEmail,
+};
 
 export class EmailService {
   private transport: EmailTransport;

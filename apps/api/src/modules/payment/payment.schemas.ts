@@ -165,3 +165,61 @@ export interface AdminPaymentDetailResponse {
     }>;
   };
 }
+
+// -------------------------------------------------------------
+// SSLCommerz Callback Schemas (Clarification 1)
+// -------------------------------------------------------------
+
+export const sslcommerzSuccessCallbackSchema = z
+  .object({
+    val_id: z.string().trim().min(1, 'val_id is required for payment success'),
+    tran_id: z.string().trim().min(1, 'tran_id is required'),
+    amount: z.string().trim().optional(),
+    currency: z.string().trim().optional(),
+    status: z.string().trim().optional(),
+  })
+  .passthrough();
+
+export const sslcommerzFailCallbackSchema = z
+  .object({
+    tran_id: z.string().trim().min(1, 'tran_id is required'),
+    val_id: z.string().trim().optional(),
+    error: z.string().trim().optional(),
+    status: z.string().trim().optional(),
+  })
+  .passthrough();
+
+export const sslcommerzCancelCallbackSchema = z
+  .object({
+    tran_id: z.string().trim().min(1, 'tran_id is required'),
+    val_id: z.string().trim().optional(),
+    status: z.string().trim().optional(),
+  })
+  .passthrough();
+
+export const sslcommerzIpnCallbackSchema = z
+  .object({
+    tran_id: z.string().trim().min(1, 'tran_id is required'),
+    status: z.string().trim().min(1, 'status is required'),
+    val_id: z.string().trim().optional(),
+    amount: z.string().trim().optional(),
+    currency: z.string().trim().optional(),
+  })
+  .passthrough()
+  .refine(
+    (data) => {
+      if (data.status === 'VALID' || data.status === 'VALIDATED') {
+        return typeof data.val_id === 'string' && data.val_id.trim().length > 0;
+      }
+      return true;
+    },
+    {
+      message: 'val_id is required when IPN status is VALID or VALIDATED',
+      path: ['val_id'],
+    },
+  );
+
+export type SslcommerzSuccessCallbackInput = z.infer<typeof sslcommerzSuccessCallbackSchema>;
+export type SslcommerzFailCallbackInput = z.infer<typeof sslcommerzFailCallbackSchema>;
+export type SslcommerzCancelCallbackInput = z.infer<typeof sslcommerzCancelCallbackSchema>;
+export type SslcommerzIpnCallbackInput = z.infer<typeof sslcommerzIpnCallbackSchema>;

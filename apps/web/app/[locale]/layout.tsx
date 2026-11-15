@@ -1,22 +1,45 @@
 import React from 'react';
 import type { Metadata } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
-import { getMessages, setRequestLocale } from 'next-intl/server';
+import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 import { routing } from '@/i18n/routing';
+import { env } from '@/lib/config';
 import { ThemeProvider } from '@/components/common/theme-provider';
 import { AuthProvider } from '@/components/auth/auth-provider';
 import { inter, hindSiliguri } from '@/lib/fonts';
 import '@/app/globals.css';
 
-export const metadata: Metadata = {
-  title: {
-    template: '%s | DigitalDepot',
-    default: 'DigitalDepot — Premium Electronics & Tech Store',
-  },
-  description:
-    'Single-retailer e-commerce platform for electronics and consumer technology in Bangladesh.',
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'seo' });
+
+  return {
+    metadataBase: new URL(env.storefrontOrigin),
+    title: {
+      template: '%s | DigitalDepot',
+      default: t('defaultTitle'),
+    },
+    description: t('defaultDescription'),
+    openGraph: {
+      type: 'website',
+      siteName: 'DigitalDepot',
+      title: t('defaultTitle'),
+      description: t('defaultDescription'),
+      locale: locale === 'bn' ? 'bn_BD' : 'en_US',
+      alternateLocale: locale === 'bn' ? ['en_US'] : ['bn_BD'],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: t('defaultTitle'),
+      description: t('defaultDescription'),
+    },
+  };
+}
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));

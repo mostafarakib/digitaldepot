@@ -5,11 +5,13 @@ import { redirect } from 'next/navigation';
 import { AdminShell } from '@/components/admin/admin-shell';
 import { AdminAuthGate } from '@/components/admin/admin-auth-gate';
 import { env } from '@/lib/config';
+import { buildNoIndexRobots } from '@/lib/seo';
 import type { AuthenticatedUser } from '@/lib/auth-types';
 
 export const metadata: Metadata = {
   title: 'Admin Dashboard',
   description: 'DigitalDepot Operations & Retail Management Suite',
+  robots: buildNoIndexRobots(),
 };
 
 export default async function AdminLayout({

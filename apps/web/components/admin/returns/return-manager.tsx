@@ -28,6 +28,7 @@ import type {
 } from '@/lib/order-types';
 import { getAdminReturnsApi, getAdminReturnDetailApi } from '@/lib/api-client';
 import { ReturnDetailModal } from './return-detail-modal';
+import { AdminTableSkeleton } from '@/components/admin/admin-table-skeleton';
 import { ApproveReturnDialog } from './approve-return-dialog';
 import { RejectReturnDialog } from './reject-return-dialog';
 import { InspectReturnModal } from './inspect-return-modal';
@@ -314,15 +315,10 @@ export function ReturnManager() {
                 <th className="px-4 py-3 text-right">{t('colActions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
-              {isLoading && returns.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="py-16 text-center text-muted-foreground">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
-                    Loading return requests...
-                  </td>
-                </tr>
-              ) : returns.length === 0 ? (
+            {isLoading && returns.length === 0 ? (
+              <AdminTableSkeleton columns={8} rows={6} />
+            ) : returns.length === 0 ? (
+              <tbody className="divide-y divide-border">
                 <tr>
                   <td colSpan={8} className="py-16 text-center text-muted-foreground">
                     <Package className="w-8 h-8 mx-auto mb-2 opacity-40" />
@@ -330,8 +326,10 @@ export function ReturnManager() {
                     <p className="text-xs text-muted-foreground mt-1">{t('noReturnsMatching')}</p>
                   </td>
                 </tr>
-              ) : (
-                returns.map((item) => (
+              </tbody>
+            ) : (
+              <tbody className="divide-y divide-border">
+                {returns.map((item) => (
                   <tr key={item.id} className="hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3.5 font-medium font-mono text-primary">
                       {item.returnNumber}
@@ -422,9 +420,9 @@ export function ReturnManager() {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
+                ))}
+              </tbody>
+            )}
           </table>
         </div>
 

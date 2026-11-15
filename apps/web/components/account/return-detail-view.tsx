@@ -9,6 +9,8 @@ import type { CustomerReturnDetail, ReturnRequestStatus } from '@/lib/order-type
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorState } from '@/components/ui/error-state';
 import { CancelReturnDialog } from './cancel-return-dialog';
 import {
   RotateCcw,
@@ -30,6 +32,7 @@ interface ReturnDetailViewProps {
 
 export function ReturnDetailView({ returnNumber }: ReturnDetailViewProps) {
   const t = useTranslations('returns');
+  const tCommon = useTranslations('common');
 
   const [returnDetail, setReturnDetail] = useState<CustomerReturnDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -153,25 +156,28 @@ export function ReturnDetailView({ returnNumber }: ReturnDetailViewProps) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
-        <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-        <p className="text-sm">Loading return details...</p>
+      <div className="space-y-6 max-w-4xl mx-auto py-8">
+        <Skeleton className="h-8 w-1/4 rounded" />
+        <Skeleton className="h-28 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
       </div>
     );
   }
 
   if (error || !returnDetail) {
     return (
-      <div className="space-y-4 max-w-2xl mx-auto py-12 text-center">
-        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-          {error || 'Return request not found'}
-        </div>
-        <Button asChild variant="outline" size="sm">
+      <div className="space-y-6 max-w-2xl mx-auto py-8">
+        <Button asChild variant="outline" size="sm" className="gap-1.5 text-xs">
           <Link href="/account/returns">
-            <ArrowLeft className="size-4 mr-1.5" />
+            <ArrowLeft className="size-3.5" />
             <span>{t('backToReturns')}</span>
           </Link>
         </Button>
+        <ErrorState
+          message={error || tCommon('returnNotFound')}
+          onRetry={fetchReturn}
+          retryLabel={tCommon('retry')}
+        />
       </div>
     );
   }

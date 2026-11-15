@@ -63,6 +63,7 @@ model User {
   storeSettingsUpdated StoreSetting[]
   customerStatusHistories CustomerStatusHistory[] @relation("CustomerStatusHistoryTarget")
   customerStatusAudits  CustomerStatusHistory[] @relation("CustomerStatusHistoryAdmin")
+  notifications         Notification[]
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 }
@@ -267,6 +268,10 @@ model Product {
   @@index([brandId])
   @@index([status])
   @@index([featured])
+  @@index([status, featured, publishedAt(sort: Desc), createdAt(sort: Desc)])
+  @@index([status, publishedAt(sort: Desc), createdAt(sort: Desc)])
+  @@index([status, categoryId])
+  @@index([status, brandId])
 }
 
 model ProductImage {
@@ -308,6 +313,7 @@ model ProductVariant {
   @@index([productId])
   @@index([productId, isDefault])
   @@index([isActive])
+  @@index([productId, isActive, price])
 }
 
 model PriceHistory {
@@ -569,6 +575,7 @@ model Order {
   @@index([paymentStatus])
   @@index([shippingDistrictId])
   @@index([status, paymentMethod, paymentExpiresAt])
+  @@index([status, createdAt(sort: Desc)])
 }
 
 model OrderItem {
@@ -801,6 +808,76 @@ model CustomerStatusHistory {
   @@index([changedByUserId])
   @@index([createdAt])
 }
+
+enum NotificationType {
+  ORDER_CONFIRMED
+  ORDER_STATUS_UPDATED
+  RETURN_REQUEST_UPDATED
+  REFUND_PROCESSED
+  LOW_STOCK_ALERT
+  SYSTEM_ALERT
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+enum DeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  DEAD_LETTER
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  link      String?          // e.g. "/account/orders/ord_123" or "/admin/orders/ord_123"
+  metadata  Json?            // Structured event identifiers (orderId, returnId, etc.)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, readAt])
+}
+
+model NotificationDelivery {
+  id               String              @id @default(cuid())
+  channel          NotificationChannel
+  recipient        String              // Email address or User ID
+  userId           String?             // Optional link to User if applicable
+  eventType        NotificationType
+  subject          String?             // For email delivery
+  payload          Json                // Sanitized template data & delivery options
+  status           DeliveryStatus      @default(PENDING)
+  attempts         Int                 @default(0)
+  maxAttempts      Int                 @default(3)
+  nextAttemptAt    DateTime            @default(now())
+  lastAttemptAt    DateTime?
+  lastError        String?             // Bounded, sanitized error message (max 500 chars)
+  sentAt           DateTime?
+  claimedAt        DateTime?           // Atomic worker lease timestamp
+  claimedBy        String?             // Worker instance identifier
+  manualRetryCount Int                 @default(0) // Preserves retry attempt audit history
+  lastRetriedBy    String?             // Acting admin ID who requested manual retry
+  lastRetriedAt    DateTime?           // Timestamp when manual retry was triggered
+  idempotencyKey   String?             @unique // Unique key for race-safe idempotent delivery queuing
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([channel, status])
+  @@index([channel, status, nextAttemptAt])
+  @@index([recipient, eventType])
+  @@index([createdAt])
+}
+
 
 
 

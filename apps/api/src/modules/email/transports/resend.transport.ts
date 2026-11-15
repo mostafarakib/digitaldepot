@@ -26,12 +26,21 @@ export class ResendTransport implements EmailTransport {
     const redactedTo = localPart && domain ? `${localPart.slice(0, 2)}***@${domain}` : '***';
 
     try {
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      };
+
+      const idempotencyKey = options.idempotencyKey || options.headers?.['Idempotency-Key'];
+      if (idempotencyKey) {
+        // Enforce Resend's 256-character limit
+        headers['Idempotency-Key'] = idempotencyKey.slice(0, 256);
+      }
+
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           from: this.from,
           to: [options.to],

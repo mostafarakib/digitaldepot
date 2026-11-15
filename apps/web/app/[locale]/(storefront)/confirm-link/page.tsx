@@ -4,6 +4,7 @@ import { getTranslations } from 'next-intl/server';
 import { ConfirmLinkForm } from '@/components/auth/confirm-link-form';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
+import { buildNoIndexRobots } from '@/lib/seo';
 
 export async function generateMetadata({
   params,
@@ -15,6 +16,7 @@ export async function generateMetadata({
   return {
     title: t('title'),
     description: t('subtitle'),
+    robots: buildNoIndexRobots(),
   };
 }
 

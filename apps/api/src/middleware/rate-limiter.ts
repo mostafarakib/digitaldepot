@@ -1,9 +1,75 @@
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request, Response } from 'express';
 
-// In test environment, skip rate limiting unless specifically testing rate limiters
-const shouldSkip = (req: Request): boolean =>
-  process.env.NODE_ENV === 'test' && req.headers['x-test-rate-limit'] !== 'true';
+/**
+ * Global rate limiting active flag.
+ * In development and production, rate limiting is always enabled.
+ * In test environment, rate limiting is disabled by default to avoid throttling integration suites,
+ * but can be enabled for specific tests via setRateLimitingEnabledForTesting(true) or ENABLE_RATE_LIMITING_TESTS=true.
+ * NEVER bypass limits based on client-supplied request headers (Clarification 2).
+ */
+let rateLimitingEnabled =
+  process.env.NODE_ENV !== 'test' || process.env.ENABLE_RATE_LIMITING_TESTS === 'true';
+
+export function setRateLimitingEnabledForTesting(enabled: boolean): void {
+  rateLimitingEnabled = enabled;
+}
+
+export function isRateLimitingEnabled(): boolean {
+  return rateLimitingEnabled;
+}
+
+const shouldSkip = (_req: Request): boolean => !rateLimitingEnabled;
+
+export const globalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // 300 requests per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: shouldSkip,
+  message: {
+    success: false,
+    error: {
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Too many requests from this network. Please try again after 15 minutes.',
+    },
+  },
+});
+
+export const paymentCallbackLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 60, // 60 callback requests per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: shouldSkip,
+  message: {
+    success: false,
+    error: {
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Too many payment callback requests. Please wait before retrying.',
+    },
+  },
+});
+
+export const reviewSubmissionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 reviews per hour per user/IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: shouldSkip,
+  keyGenerator: (req: Request): string => {
+    const userId = req.user?.id || 'anonymous';
+    const clientIp = ipKeyGenerator(req.ip || req.socket.remoteAddress || '127.0.0.1');
+    return `${clientIp}_${userId}`;
+  },
+  message: {
+    success: false,
+    error: {
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Too many reviews submitted. Please wait an hour before submitting more reviews.',
+    },
+  },
+});
 
 export const loginIpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes

@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { cancelCustomerReturnApi, ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
+import { useModalA11y } from '@/hooks/use-modal-a11y';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 
 interface CancelReturnDialogProps {
@@ -24,6 +25,14 @@ export function CancelReturnDialog({
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useModalA11y({
+    isOpen,
+    onClose,
+    containerRef: dialogRef,
+    disabled: isSubmitting,
+  });
 
   if (!isOpen) return null;
 
@@ -47,13 +56,19 @@ export function CancelReturnDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-card border border-border shadow-xl rounded-xl p-6 space-y-5">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cancel-return-dialog-title"
+        className="relative w-full max-w-md bg-card border border-border shadow-xl rounded-xl p-6 space-y-5"
+      >
         <div className="flex items-start gap-3">
           <div className="p-2.5 rounded-full bg-destructive/10 text-destructive shrink-0">
             <AlertTriangle className="size-5" />
           </div>
           <div className="space-y-1">
-            <h3 className="text-base font-semibold text-foreground">
+            <h3 id="cancel-return-dialog-title" className="text-base font-semibold text-foreground">
               {t('cancelDialog.title', { returnNumber })}
             </h3>
             <p className="text-xs text-muted-foreground leading-relaxed">

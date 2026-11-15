@@ -9,6 +9,9 @@ import type { CustomerOrderSummaryItem, OrderStatus } from '@/lib/order-types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
+import { ErrorState } from '@/components/ui/error-state';
 import { CancelOrderDialog } from './cancel-order-dialog';
 import {
   Package,
@@ -37,6 +40,7 @@ const STATUS_FILTERS: Array<{ id: string; status?: OrderStatus }> = [
 
 export function OrderHistoryView() {
   const t = useTranslations('orders');
+  const tCommon = useTranslations('common');
   const [orders, setOrders] = useState<CustomerOrderSummaryItem[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<OrderStatus | undefined>(undefined);
   const [page, setPage] = useState(1);
@@ -214,44 +218,30 @@ export function OrderHistoryView() {
 
       {/* Main Content State */}
       {isLoading ? (
-        <div className="space-y-4 py-8">
+        <div className="space-y-4 py-4">
           {[1, 2, 3].map((i) => (
-            <Card key={i} className="animate-pulse bg-card/60">
+            <Card key={i} className="bg-card/60">
               <CardContent className="p-6 space-y-4">
-                <div className="h-4 bg-muted rounded w-1/4" />
-                <div className="h-12 bg-muted rounded w-full" />
-                <div className="h-4 bg-muted rounded w-1/3" />
+                <Skeleton className="h-4 w-1/4 rounded" />
+                <Skeleton className="h-12 w-full rounded" />
+                <Skeleton className="h-4 w-1/3 rounded" />
               </CardContent>
             </Card>
           ))}
         </div>
       ) : error ? (
-        <Card className="border-destructive/30 bg-destructive/5 text-center p-8">
-          <CardContent className="space-y-3">
-            <XCircle className="size-8 text-destructive mx-auto" />
-            <p className="text-sm font-semibold text-destructive">{error}</p>
-            <Button size="sm" variant="outline" onClick={fetchOrders} className="text-xs">
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
+        <ErrorState message={error} onRetry={fetchOrders} retryLabel={tCommon('tryAgain')} />
       ) : orders.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center rounded-2xl border border-dashed border-border bg-card/40 p-8 space-y-4">
-          <div className="p-4 rounded-full bg-muted/60 text-muted-foreground">
-            <ShoppingBag className="size-8" />
-          </div>
-          <div className="space-y-1 max-w-sm">
-            <h3 className="text-base font-semibold text-foreground">
-              {selectedStatus ? t('noOrdersMatchingFilter') : t('noOrdersTitle')}
-            </h3>
-            <p className="text-xs text-muted-foreground">
-              {selectedStatus ? '' : t('noOrdersSubtitle')}
-            </p>
-          </div>
-          <Button asChild size="sm" className="text-xs">
-            <Link href="/products">{t('startShopping')}</Link>
-          </Button>
-        </div>
+        <EmptyState
+          icon={<ShoppingBag className="size-8" />}
+          title={selectedStatus ? t('noOrdersMatchingFilter') : t('noOrdersTitle')}
+          description={selectedStatus ? undefined : t('noOrdersSubtitle')}
+          action={
+            <Button asChild size="sm" className="text-xs">
+              <Link href="/products">{t('startShopping')}</Link>
+            </Button>
+          }
+        />
       ) : (
         <div className="space-y-4">
           {orders.map((order) => {

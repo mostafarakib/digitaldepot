@@ -9,6 +9,8 @@ import type { CustomerOrderDetail, OrderStatus } from '@/lib/order-types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { ErrorState } from '@/components/ui/error-state';
+import { Skeleton } from '@/components/ui/skeleton';
 import { CancelOrderDialog } from './cancel-order-dialog';
 import { RequestReturnDialog } from './request-return-dialog';
 import { getReturnEligibilityApi } from '@/lib/api-client';
@@ -40,6 +42,7 @@ const ORDER_STEPS: OrderStatus[] = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPP
 
 export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
   const t = useTranslations('orders');
+  const tCommon = useTranslations('common');
   const tReturns = useTranslations('returns');
   const router = useRouter();
 
@@ -178,12 +181,12 @@ export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 py-12">
-        <div className="h-8 bg-muted rounded w-1/3 animate-pulse" />
-        <div className="h-32 bg-muted rounded-2xl animate-pulse" />
+      <div className="space-y-6 py-8">
+        <Skeleton className="h-8 w-1/3 rounded" />
+        <Skeleton className="h-32 w-full rounded-2xl" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="h-64 bg-muted rounded-2xl md:col-span-2 animate-pulse" />
-          <div className="h-64 bg-muted rounded-2xl animate-pulse" />
+          <Skeleton className="h-64 rounded-2xl md:col-span-2" />
+          <Skeleton className="h-64 rounded-2xl" />
         </div>
       </div>
     );
@@ -191,22 +194,18 @@ export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
 
   if (error || !order) {
     return (
-      <div className="space-y-6 py-12">
+      <div className="space-y-6 py-8">
         <Button asChild variant="outline" size="sm" className="gap-2 text-xs">
           <Link href="/account/orders">
             <ArrowLeft className="size-3.5" />
             <span>{t('backToOrders')}</span>
           </Link>
         </Button>
-        <Card className="border-destructive/30 bg-destructive/5 text-center p-8">
-          <CardContent className="space-y-3">
-            <XCircle className="size-8 text-destructive mx-auto" />
-            <p className="text-sm font-semibold text-destructive">{error || 'Order not found'}</p>
-            <Button size="sm" variant="outline" onClick={fetchOrder} className="text-xs">
-              Try Again
-            </Button>
-          </CardContent>
-        </Card>
+        <ErrorState
+          message={error || tCommon('orderNotFound')}
+          onRetry={fetchOrder}
+          retryLabel={tCommon('tryAgain')}
+        />
       </div>
     );
   }

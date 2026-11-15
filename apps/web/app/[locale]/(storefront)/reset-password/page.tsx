@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/routing';
 import { Loader2, AlertCircle } from 'lucide-react';
+import { buildNoIndexRobots } from '@/lib/seo';
 
 export async function generateMetadata({
   params,
@@ -17,6 +18,7 @@ export async function generateMetadata({
   return {
     title: t('title'),
     description: t('subtitle'),
+    robots: buildNoIndexRobots(),
   };
 }
 

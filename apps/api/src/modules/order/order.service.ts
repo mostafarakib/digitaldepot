@@ -9,6 +9,7 @@ import {
 import { generateOrderNumber, generateTransactionId } from './order.utils.js';
 import { inventoryReservationService } from './inventory-reservation.service.js';
 import { orderCouponService } from './order-coupon.service.js';
+import { notificationService } from '../notification/notification.service.js';
 import type {
   CreateOrderCoreInput,
   OrderStockItem,
@@ -241,7 +242,30 @@ export class OrderService {
         });
       }
 
-      // 14. Return the persisted Order with complete relations
+      // 14. Create persistent in-app notification & transactional email (Phase 9B)
+      if (isCod) {
+        await notificationService.sendOrderConfirmedNotification(
+          { orderId: order.id, locale: input.locale },
+          tx,
+        );
+      } else {
+        await notificationService.createInAppNotification(
+          {
+            userId: input.userId,
+            type: 'ORDER_CONFIRMED',
+            title: input.locale === 'bn' ? 'অর্ডার তৈরি হয়েছে' : 'Order Created',
+            message:
+              input.locale === 'bn'
+                ? `আপনার অর্ডার #${order.orderNumber} তৈরি হয়েছে। অনুগ্রহ করে পেমেন্ট সম্পন্ন করুন।`
+                : `Your order #${order.orderNumber} has been created. Please complete payment.`,
+            link: `/account/orders/${order.id}`,
+            metadata: { orderId: order.id, orderNumber: order.orderNumber },
+          },
+          tx,
+        );
+      }
+
+      // 15. Return the persisted Order with complete relations
       return await tx.order.findUniqueOrThrow({
         where: { id: order.id },
         include: {
@@ -378,6 +402,16 @@ export class OrderService {
           changedByUserId: actorId,
         },
       });
+
+      // Dispatch in-app notification & transactional email (Phase 9B)
+      await notificationService.sendOrderStatusNotification(
+        {
+          orderId: order.id,
+          status: 'CANCELLED',
+          reason: params.reason,
+        },
+        tx,
+      );
 
       return await tx.order.findUniqueOrThrow({
         where: { id: order.id },
@@ -1131,6 +1165,25 @@ export class OrderService {
           changedByUserId: adminUserId,
         },
       });
+
+      // Dispatch in-app notification & transactional email (Phase 9B)
+      if (newStatus === 'PROCESSING' || newStatus === 'SHIPPED' || newStatus === 'DELIVERED') {
+        await notificationService.sendOrderStatusNotification(
+          {
+            orderId: order.id,
+            status: newStatus,
+            reason,
+          },
+          tx,
+        );
+      } else if (newStatus === 'CONFIRMED') {
+        await notificationService.sendOrderConfirmedNotification(
+          {
+            orderId: order.id,
+          },
+          tx,
+        );
+      }
 
       return await tx.order.findUniqueOrThrow({
         where: { id: order.id },

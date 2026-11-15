@@ -69,4 +69,14 @@ describe('Navigation proxy middleware', () => {
       expect(location).not.toContain('/login');
     }
   });
+
+  it('allows access to /robots.txt and /sitemap.xml without auth or redirection', () => {
+    const robotsReq = new NextRequest('http://localhost:3000/robots.txt');
+    const robotsRes = proxy(robotsReq);
+    expect(robotsRes.headers.get('location')).toBeNull();
+
+    const sitemapReq = new NextRequest('http://localhost:3000/sitemap.xml');
+    const sitemapRes = proxy(sitemapReq);
+    expect(sitemapRes.headers.get('location')).toBeNull();
+  });
 });

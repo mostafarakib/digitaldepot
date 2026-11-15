@@ -5,6 +5,7 @@ import { BadRequestError, NotFoundError } from '../../lib/errors.js';
 import { sslcommerzService, type ValidateOrderResult } from './sslcommerz.service.js';
 import { inventoryReservationService } from '../order/inventory-reservation.service.js';
 import { orderCouponService } from '../order/order-coupon.service.js';
+import { notificationService } from '../notification/notification.service.js';
 import type { OrderStockItem } from '../order/order.types.js';
 import type { Prisma } from '../../generated/client/client.js';
 import type {
@@ -242,6 +243,9 @@ export class PaymentService {
           changedByUserId: null,
         },
       });
+
+      // Dispatch in-app notification & transactional confirmation email (Phase 9B)
+      await notificationService.sendOrderConfirmedNotification({ orderId: order.id }, tx);
 
       logger.info(
         { orderNumber: order.orderNumber, tranId, amount: verifiedAmountPoysha },

@@ -1,32 +1,18 @@
-'use client';
-
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Logo } from '@/components/common/logo';
 import { MapPin, Mail, Clock, Phone, CreditCard, Banknote, ShieldAlert } from 'lucide-react';
-import { getPublicStoreSettingsApi } from '@/lib/api-client';
 import type { PublicStoreSettings } from '@/lib/settings-types';
 
-export function StorefrontFooter() {
+interface StorefrontFooterProps {
+  settings?: PublicStoreSettings | null;
+}
+
+export function StorefrontFooter({ settings }: StorefrontFooterProps = {}) {
   const t = useTranslations('footer');
   const tCommon = useTranslations('common');
   const currentYear = new Date().getFullYear();
-  const [settings, setSettings] = useState<PublicStoreSettings | null>(null);
-
-  useEffect(() => {
-    let ignore = false;
-    getPublicStoreSettingsApi()
-      .then((data) => {
-        if (!ignore && data) {
-          setSettings(data);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      ignore = true;
-    };
-  }, []);
 
   return (
     <footer className="w-full bg-slate-900 text-slate-300 border-t border-slate-800 pt-12 pb-24 md:pb-12 mt-16">

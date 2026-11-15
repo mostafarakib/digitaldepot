@@ -21,6 +21,7 @@ export const checkoutCodInputSchema = z.object({
     .optional()
     .nullable(),
   acknowledgedLivePrices: z.boolean().optional().default(false),
+  locale: z.enum(['en', 'bn']).optional(),
 });
 
 export type CheckoutCodInput = z.infer<typeof checkoutCodInputSchema>;
@@ -40,6 +41,7 @@ export const checkoutOnlineInputSchema = z.object({
     .optional()
     .nullable(),
   acknowledgedLivePrices: z.boolean().optional().default(false),
+  locale: z.enum(['en', 'bn']).optional(),
 });
 
 export type CheckoutOnlineInput = z.infer<typeof checkoutOnlineInputSchema>;

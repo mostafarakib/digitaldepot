@@ -16,8 +16,11 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 
+import { buildNoIndexRobots } from '@/lib/seo';
+
 export const metadata: Metadata = {
   title: 'API Status',
+  robots: buildNoIndexRobots(),
 };
 
 type HealthData = {
