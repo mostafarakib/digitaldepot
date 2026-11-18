@@ -302,4 +302,43 @@ describe('SSLCommerz Gateway Client Service', () => {
       expect(result.status).toBe('AMBIGUOUS');
     });
   });
+
+  describe('Unconfigured Gateway Credentials Safety', () => {
+    beforeEach(() => {
+      vi.spyOn(sslcommerzService, 'isConfigured').mockReturnValue(false);
+    });
+
+    it('rejects initiateSession when gateway credentials are unconfigured', async () => {
+      await expect(
+        sslcommerzService.initiateSession({
+          order: mockOrder,
+          payment: mockPayment,
+          customerEmail: 'customer@example.com',
+        }),
+      ).rejects.toThrow('Online payment gateway is not configured');
+    });
+
+    it('rejects validateOrder when gateway credentials are unconfigured', async () => {
+      await expect(sslcommerzService.validateOrder('val-12345')).rejects.toThrow(
+        'Online payment gateway is not configured',
+      );
+    });
+
+    it('returns FAILED on initiateRefund when gateway credentials are unconfigured', async () => {
+      const result = await sslcommerzService.initiateRefund({
+        bankTranId: 'bank-123',
+        refundAmount: 50000,
+        refundRemarks: 'Test refund',
+        refundRefId: 'ref-123',
+      });
+      expect(result.status).toBe('FAILED');
+      expect(result.errorReason).toContain('not configured');
+    });
+
+    it('returns FAILED on queryRefundStatus when gateway credentials are unconfigured', async () => {
+      const result = await sslcommerzService.queryRefundStatus('ref-123');
+      expect(result.status).toBe('FAILED');
+      expect(result.errorReason).toContain('not configured');
+    });
+  });
 });

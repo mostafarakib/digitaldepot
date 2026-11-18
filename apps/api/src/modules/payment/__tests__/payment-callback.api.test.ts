@@ -136,7 +136,7 @@ describe('Phase 6C: SSLCommerz Payment Callbacks & IPN Webhook API', () => {
         val_id: 'val-success-123',
         amount: '2060.00',
         currency: 'BDT',
-        store_id: env.SSLCOMMERZ_STORE_ID,
+        store_id: env.SSLCOMMERZ_STORE_ID!,
         bank_tran_id: 'BANK-TRX-7788',
         card_type: 'VISA',
         raw: { status: 'VALID' },
@@ -198,7 +198,7 @@ describe('Phase 6C: SSLCommerz Payment Callbacks & IPN Webhook API', () => {
         val_id: 'val-ipn-123',
         amount: '1060.00',
         currency: 'BDT',
-        store_id: env.SSLCOMMERZ_STORE_ID,
+        store_id: env.SSLCOMMERZ_STORE_ID!,
         bank_tran_id: 'BANK-IPN-4455',
         raw: { status: 'VALIDATED' },
       });
@@ -233,7 +233,7 @@ describe('Phase 6C: SSLCommerz Payment Callbacks & IPN Webhook API', () => {
         val_id: 'val-dup-123',
         amount: '2060.00',
         currency: 'BDT',
-        store_id: env.SSLCOMMERZ_STORE_ID,
+        store_id: env.SSLCOMMERZ_STORE_ID!,
         bank_tran_id: 'BANK-DUP-11',
         raw: { status: 'VALID' },
       });
@@ -314,7 +314,7 @@ describe('Phase 6C: SSLCommerz Payment Callbacks & IPN Webhook API', () => {
         val_id: 'val-cancel-verified',
         amount: '2060.00',
         currency: 'BDT',
-        store_id: env.SSLCOMMERZ_STORE_ID,
+        store_id: env.SSLCOMMERZ_STORE_ID!,
         raw: { status: 'CANCELLED' },
       });
 
@@ -372,7 +372,7 @@ describe('Phase 6C: SSLCommerz Payment Callbacks & IPN Webhook API', () => {
         val_id: 'val-late-123',
         amount: '2060.00',
         currency: 'BDT',
-        store_id: env.SSLCOMMERZ_STORE_ID,
+        store_id: env.SSLCOMMERZ_STORE_ID!,
         bank_tran_id: 'BANK-LATE-99',
         raw: { status: 'VALID' },
       });
@@ -425,7 +425,7 @@ describe('Phase 6C: SSLCommerz Payment Callbacks & IPN Webhook API', () => {
         val_id: 'val-fraud-123',
         amount: '1000.00',
         currency: 'BDT',
-        store_id: env.SSLCOMMERZ_STORE_ID,
+        store_id: env.SSLCOMMERZ_STORE_ID!,
         raw: { status: 'VALID' },
       });
 
@@ -459,7 +459,7 @@ describe('Phase 6C: SSLCommerz Payment Callbacks & IPN Webhook API', () => {
         val_id: 'val-curr-123',
         amount: '2060.00',
         currency: 'USD', // Invalid currency
-        store_id: env.SSLCOMMERZ_STORE_ID,
+        store_id: env.SSLCOMMERZ_STORE_ID!,
         raw: { status: 'VALID' },
       });
 

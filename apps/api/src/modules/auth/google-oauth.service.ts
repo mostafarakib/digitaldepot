@@ -1,6 +1,6 @@
 import * as jose from 'jose';
-import { env } from '../../config/env.js';
-import { BadRequestError } from '../../lib/errors.js';
+import { env, isGoogleOAuthConfigured } from '../../config/env.js';
+import { BadRequestError, ServiceUnavailableError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 
 export interface GoogleTokenPayload {
@@ -49,12 +49,26 @@ export class GoogleOAuthService implements IGoogleOAuthService {
     this.customCodeExchanger = exchanger;
   }
 
+  /**
+   * Returns true if Google OAuth credentials are fully configured and non-placeholder.
+   */
+  public isConfigured(): boolean {
+    return isGoogleOAuthConfigured(env);
+  }
+
   public getAuthorizationUrl(params: {
     state: string;
     nonce: string;
     codeChallenge: string;
     prompt?: string;
   }): string {
+    if (!this.isConfigured() || !env.GOOGLE_CLIENT_ID) {
+      throw new ServiceUnavailableError(
+        'OAUTH_NOT_CONFIGURED',
+        'Google OAuth is not configured on this server',
+      );
+    }
+
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     url.searchParams.set('client_id', env.GOOGLE_CLIENT_ID);
     url.searchParams.set('redirect_uri', env.GOOGLE_CALLBACK_URL);
@@ -77,6 +91,13 @@ export class GoogleOAuthService implements IGoogleOAuthService {
   ): Promise<{ idToken: string; accessToken?: string }> {
     if (this.customCodeExchanger) {
       return this.customCodeExchanger(code, codeVerifier);
+    }
+
+    if (!this.isConfigured() || !env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+      throw new ServiceUnavailableError(
+        'OAUTH_NOT_CONFIGURED',
+        'Google OAuth is not configured on this server',
+      );
     }
 
     const tokenUrl = 'https://oauth2.googleapis.com/token';
@@ -136,6 +157,13 @@ export class GoogleOAuthService implements IGoogleOAuthService {
   }
 
   public async verifyIdToken(idToken: string, expectedNonce: string): Promise<GoogleTokenPayload> {
+    if (!this.isConfigured() || !env.GOOGLE_CLIENT_ID) {
+      throw new ServiceUnavailableError(
+        'OAUTH_NOT_CONFIGURED',
+        'Google OAuth is not configured on this server',
+      );
+    }
+
     const keyResolver =
       this.customJwks ||
       jose.createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));

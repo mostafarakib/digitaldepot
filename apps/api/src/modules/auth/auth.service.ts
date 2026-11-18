@@ -21,6 +21,7 @@ import {
   ForbiddenError,
   NotFoundError,
   UnauthorizedError,
+  ServiceUnavailableError,
 } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { parseUserAgent, maskIp, type ParsedUserAgent } from '../../lib/user-agent.js';
@@ -1316,6 +1317,13 @@ export class AuthService {
     statePrefix: string;
     hmac: string;
   }> {
+    if (!googleOAuthService.isConfigured()) {
+      throw new ServiceUnavailableError(
+        'OAUTH_NOT_CONFIGURED',
+        'Google OAuth is not configured on this server',
+      );
+    }
+
     const linked = await prisma.oAuthAccount.findFirst({
       where: { userId, provider: OAUTH_PROVIDER_GOOGLE },
     });
@@ -1373,6 +1381,13 @@ export class AuthService {
     statePrefix: string;
     hmac: string;
   }> {
+    if (!googleOAuthService.isConfigured()) {
+      throw new ServiceUnavailableError(
+        'OAUTH_NOT_CONFIGURED',
+        'Google OAuth is not configured on this server',
+      );
+    }
+
     const safeReturnUrl = validateSafeReturnUrl(returnUrl, '/');
 
     const { rawState, statePrefix, stateHash, hmac } = generateOAuthState();
@@ -1450,6 +1465,13 @@ export class AuthService {
         statePrefix: string;
       }
   > {
+    if (!googleOAuthService.isConfigured()) {
+      throw new ServiceUnavailableError(
+        'OAUTH_NOT_CONFIGURED',
+        'Google OAuth is not configured on this server',
+      );
+    }
+
     const statePrefix = params.rawState.slice(0, 16);
     if (!isValidPrefix(statePrefix)) {
       throw new BadRequestError('INVALID_OAUTH_STATE', 'Invalid OAuth state prefix');

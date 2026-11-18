@@ -1,5 +1,6 @@
-import { env } from '../../config/env.js';
+import { env, isSslcommerzConfigured } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
+import { ServiceUnavailableError } from '../../lib/errors.js';
 import type { OrderWithDetails } from '../order/order.types.js';
 import type { Payment } from '../../generated/client/client.js';
 
@@ -45,6 +46,29 @@ export interface SslcommerzRefundResult {
 }
 
 export class SslcommerzService {
+  /**
+   * Returns true if valid non-placeholder SSLCommerz credentials are configured.
+   */
+  public isConfigured(): boolean {
+    return isSslcommerzConfigured(env);
+  }
+
+  /**
+   * Ensures SSLCommerz credentials are configured and non-placeholder, returning them safely.
+   */
+  public assertConfigured(): { storeId: string; storePassword: string } {
+    if (!this.isConfigured() || !env.SSLCOMMERZ_STORE_ID || !env.SSLCOMMERZ_STORE_PASSWORD) {
+      throw new ServiceUnavailableError(
+        'PAYMENT_GATEWAY_NOT_CONFIGURED',
+        'Online payment gateway is not configured with valid credentials. Please choose Cash on Delivery or try again later.',
+      );
+    }
+    return {
+      storeId: env.SSLCOMMERZ_STORE_ID,
+      storePassword: env.SSLCOMMERZ_STORE_PASSWORD,
+    };
+  }
+
   private getBaseUrl(): string {
     return env.SSLCOMMERZ_IS_SANDBOX
       ? 'https://sandbox.sslcommerz.com'
@@ -56,6 +80,7 @@ export class SslcommerzService {
    * Runs outside database transactions.
    */
   async initiateSession(params: InitiateSessionParams): Promise<InitiateSessionResult> {
+    const { storeId, storePassword } = this.assertConfigured();
     const { order, payment, customerEmail } = params;
     const baseUrl = this.getBaseUrl();
     const endpoint = `${baseUrl}/gwprocess/v4/api.php`;
@@ -67,8 +92,8 @@ export class SslcommerzService {
       .slice(0, 250);
 
     const formData = new URLSearchParams();
-    formData.append('store_id', env.SSLCOMMERZ_STORE_ID);
-    formData.append('store_passwd', env.SSLCOMMERZ_STORE_PASSWORD);
+    formData.append('store_id', storeId);
+    formData.append('store_passwd', storePassword);
     formData.append('total_amount', totalAmount);
     formData.append('currency', 'BDT');
     formData.append('tran_id', payment.transactionId);
@@ -165,11 +190,12 @@ export class SslcommerzService {
    * Runs outside database transactions.
    */
   async validateOrder(valId: string): Promise<ValidateOrderResult> {
+    const { storeId, storePassword } = this.assertConfigured();
     const baseUrl = this.getBaseUrl();
     const query = new URLSearchParams({
       val_id: valId,
-      store_id: env.SSLCOMMERZ_STORE_ID,
-      store_passwd: env.SSLCOMMERZ_STORE_PASSWORD,
+      store_id: storeId,
+      store_passwd: storePassword,
       v: '1',
       format: 'json',
     });
@@ -216,6 +242,15 @@ export class SslcommerzService {
    * Runs strictly outside database transactions.
    */
   async initiateRefund(params: SslcommerzRefundParams): Promise<SslcommerzRefundResult> {
+    if (!this.isConfigured() || !env.SSLCOMMERZ_STORE_ID || !env.SSLCOMMERZ_STORE_PASSWORD) {
+      logger.error('SSLCommerz refund initiation attempted without valid credentials');
+      return {
+        status: 'FAILED',
+        errorReason: 'Online payment gateway is not configured with valid credentials',
+        raw: {},
+      };
+    }
+
     const { bankTranId, refundAmount, refundRemarks, refundRefId } = params;
     const baseUrl = this.getBaseUrl();
     const endpoint = `${baseUrl}/validator/api/merchantTransIDvalidationAPI.php`;
@@ -310,6 +345,15 @@ export class SslcommerzService {
    * Runs strictly outside database transactions.
    */
   async queryRefundStatus(refundRefId: string): Promise<SslcommerzRefundResult> {
+    if (!this.isConfigured() || !env.SSLCOMMERZ_STORE_ID || !env.SSLCOMMERZ_STORE_PASSWORD) {
+      logger.error('SSLCommerz refund status query attempted without valid credentials');
+      return {
+        status: 'FAILED',
+        errorReason: 'Online payment gateway is not configured with valid credentials',
+        raw: {},
+      };
+    }
+
     const baseUrl = this.getBaseUrl();
     const endpoint = `${baseUrl}/validator/api/merchantTransIDvalidationAPI.php`;
 

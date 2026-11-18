@@ -45,3 +45,9 @@ export class BadGatewayError extends AppError {
     super(502, code, message);
   }
 }
+
+export class ServiceUnavailableError extends AppError {
+  constructor(code = 'SERVICE_UNAVAILABLE', message = 'Service temporarily unavailable') {
+    super(503, code, message);
+  }
+}

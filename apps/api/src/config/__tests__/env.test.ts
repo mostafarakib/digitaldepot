@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { envSchema, isValidSenderAddress } from '../env.js';
+import {
+  envSchema,
+  isValidSenderAddress,
+  isGoogleOAuthConfigured,
+  isSslcommerzConfigured,
+} from '../env.js';
 
 describe('Environment Configuration Validation (envSchema)', () => {
   const baseValidProdEnv = {
@@ -155,7 +160,227 @@ describe('Environment Configuration Validation (envSchema)', () => {
     });
   });
 
-  describe('OAuth Configuration Rules', () => {
+  describe('Google OAuth Configuration Rules', () => {
+    it('allows production startup with Google OAuth completely unconfigured/disabled', () => {
+      const noOAuthEnv = {
+        ...baseValidProdEnv,
+        GOOGLE_CLIENT_ID: undefined,
+        GOOGLE_CLIENT_SECRET: undefined,
+        GOOGLE_CALLBACK_URL: 'http://localhost:3000/api/auth/oauth/google/callback',
+      };
+
+      const res = envSchema.safeParse(noOAuthEnv);
+      expect(res.success).toBe(true);
+      if (res.success) {
+        expect(res.data.GOOGLE_CLIENT_ID).toBeUndefined();
+        expect(res.data.GOOGLE_CLIENT_SECRET).toBeUndefined();
+        expect(isGoogleOAuthConfigured(res.data)).toBe(false);
+      }
+    });
+
+    it('fails production startup with partially configured Google OAuth', () => {
+      // Only client ID
+      const onlyClientId = envSchema.safeParse({
+        ...baseValidProdEnv,
+        GOOGLE_CLIENT_ID: '1234567890-prod.apps.googleusercontent.com',
+        GOOGLE_CLIENT_SECRET: undefined,
+      });
+      expect(onlyClientId.success).toBe(false);
+      if (!onlyClientId.success) {
+        expect(onlyClientId.error.flatten().fieldErrors.GOOGLE_CLIENT_SECRET?.[0]).toContain(
+          'GOOGLE_CLIENT_SECRET is required when GOOGLE_CLIENT_ID is configured',
+        );
+      }
+
+      // Only client secret
+      const onlyClientSecret = envSchema.safeParse({
+        ...baseValidProdEnv,
+        GOOGLE_CLIENT_ID: undefined,
+        GOOGLE_CLIENT_SECRET: 'prod-secret-12345',
+      });
+      expect(onlyClientSecret.success).toBe(false);
+      if (!onlyClientSecret.success) {
+        expect(onlyClientSecret.error.flatten().fieldErrors.GOOGLE_CLIENT_ID?.[0]).toContain(
+          'GOOGLE_CLIENT_ID is required when GOOGLE_CLIENT_SECRET is configured',
+        );
+      }
+    });
+
+    it('rejects placeholder Google OAuth credentials in any environment', () => {
+      const resPlaceholderId = envSchema.safeParse({
+        ...baseValidProdEnv,
+        GOOGLE_CLIENT_ID: 'dev-google-client-id',
+        GOOGLE_CLIENT_SECRET: 'real-secret-12345',
+      });
+      expect(resPlaceholderId.success).toBe(false);
+      if (!resPlaceholderId.success) {
+        expect(resPlaceholderId.error.flatten().fieldErrors.GOOGLE_CLIENT_ID?.[0]).toContain(
+          'must not use placeholder credentials',
+        );
+      }
+
+      const resPlaceholderSecret = envSchema.safeParse({
+        ...baseValidProdEnv,
+        GOOGLE_CLIENT_ID: '1234567890-prod.apps.googleusercontent.com',
+        GOOGLE_CLIENT_SECRET: 'dev-google-client-secret',
+      });
+      expect(resPlaceholderSecret.success).toBe(false);
+      if (!resPlaceholderSecret.success) {
+        expect(
+          resPlaceholderSecret.error.flatten().fieldErrors.GOOGLE_CLIENT_SECRET?.[0],
+        ).toContain('must not use placeholder credentials');
+      }
+    });
+
+    it('requires valid Google client ID domain and HTTPS callback in production when configured', () => {
+      const invalidDomain = envSchema.safeParse({
+        ...baseValidProdEnv,
+        GOOGLE_CLIENT_ID: 'my-app.example.com',
+      });
+      expect(invalidDomain.success).toBe(false);
+      if (!invalidDomain.success) {
+        expect(invalidDomain.error.flatten().fieldErrors.GOOGLE_CLIENT_ID?.[0]).toContain(
+          'must be a valid Google OAuth Client ID ending with .apps.googleusercontent.com',
+        );
+      }
+
+      const insecureCallback = envSchema.safeParse({
+        ...baseValidProdEnv,
+        GOOGLE_CALLBACK_URL: 'http://digitaldepot.com/api/auth/oauth/google/callback',
+      });
+      expect(insecureCallback.success).toBe(false);
+      if (!insecureCallback.success) {
+        expect(insecureCallback.error.flatten().fieldErrors.GOOGLE_CALLBACK_URL?.[0]).toContain(
+          'must use https://',
+        );
+      }
+    });
+  });
+
+  describe('SSLCommerz Payment Gateway Configuration Rules', () => {
+    it('allows production startup with SSLCommerz completely unconfigured', () => {
+      const noPaymentEnv = {
+        ...baseValidProdEnv,
+        SSLCOMMERZ_STORE_ID: undefined,
+        SSLCOMMERZ_STORE_PASSWORD: undefined,
+      };
+
+      const res = envSchema.safeParse(noPaymentEnv);
+      expect(res.success).toBe(true);
+      if (res.success) {
+        expect(res.data.SSLCOMMERZ_STORE_ID).toBeUndefined();
+        expect(res.data.SSLCOMMERZ_STORE_PASSWORD).toBeUndefined();
+        expect(isSslcommerzConfigured(res.data)).toBe(false);
+      }
+    });
+
+    it('allows production startup with explicitly configured sandbox mode for portfolio demo', () => {
+      const sandboxProdEnv = {
+        ...baseValidProdEnv,
+        SSLCOMMERZ_STORE_ID: 'valid_demo_store_id_123',
+        SSLCOMMERZ_STORE_PASSWORD: 'valid_demo_store_password_456',
+        SSLCOMMERZ_IS_SANDBOX: true,
+      };
+
+      const res = envSchema.safeParse(sandboxProdEnv);
+      expect(res.success).toBe(true);
+      if (res.success) {
+        expect(res.data.SSLCOMMERZ_IS_SANDBOX).toBe(true);
+        expect(res.data.SSLCOMMERZ_STORE_ID).toBe('valid_demo_store_id_123');
+        expect(isSslcommerzConfigured(res.data)).toBe(true);
+      }
+    });
+
+    it('allows production startup with live mode when configured with valid credentials', () => {
+      const liveProdEnv = {
+        ...baseValidProdEnv,
+        SSLCOMMERZ_STORE_ID: 'valid_live_store_id_999',
+        SSLCOMMERZ_STORE_PASSWORD: 'valid_live_store_password_888',
+        SSLCOMMERZ_IS_SANDBOX: 'false',
+      };
+
+      const res = envSchema.safeParse(liveProdEnv);
+      expect(res.success).toBe(true);
+      if (res.success) {
+        expect(res.data.SSLCOMMERZ_IS_SANDBOX).toBe(false);
+        expect(res.data.SSLCOMMERZ_STORE_ID).toBe('valid_live_store_id_999');
+        expect(isSslcommerzConfigured(res.data)).toBe(true);
+      }
+    });
+
+    it('requires explicit SSLCOMMERZ_IS_SANDBOX in production when credentials are configured and rejects invalid values', () => {
+      const omittedMode = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_IS_SANDBOX: undefined,
+      });
+      expect(omittedMode.success).toBe(false);
+      if (!omittedMode.success) {
+        expect(omittedMode.error.flatten().fieldErrors.SSLCOMMERZ_IS_SANDBOX?.[0]).toContain(
+          'must be explicitly set',
+        );
+      }
+
+      const invalidMode = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_IS_SANDBOX: 'invalid_bool',
+      });
+      expect(invalidMode.success).toBe(false);
+    });
+
+    it('fails production startup with partially configured SSLCommerz', () => {
+      const onlyStoreId = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_STORE_ID: 'valid_store_id',
+        SSLCOMMERZ_STORE_PASSWORD: undefined,
+      });
+      expect(onlyStoreId.success).toBe(false);
+      if (!onlyStoreId.success) {
+        expect(onlyStoreId.error.flatten().fieldErrors.SSLCOMMERZ_STORE_PASSWORD?.[0]).toContain(
+          'SSLCOMMERZ_STORE_PASSWORD is required when SSLCOMMERZ_STORE_ID is configured',
+        );
+      }
+
+      const onlyPassword = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_STORE_ID: undefined,
+        SSLCOMMERZ_STORE_PASSWORD: 'valid_store_password',
+      });
+      expect(onlyPassword.success).toBe(false);
+      if (!onlyPassword.success) {
+        expect(onlyPassword.error.flatten().fieldErrors.SSLCOMMERZ_STORE_ID?.[0]).toContain(
+          'SSLCOMMERZ_STORE_ID is required when SSLCOMMERZ_STORE_PASSWORD is configured',
+        );
+      }
+    });
+
+    it('rejects placeholder SSLCommerz credentials in any environment', () => {
+      const placeholderStoreId = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_STORE_ID: 'digitaldepot_sandbox_store',
+        SSLCOMMERZ_STORE_PASSWORD: 'real_password_12345',
+      });
+      expect(placeholderStoreId.success).toBe(false);
+      if (!placeholderStoreId.success) {
+        expect(placeholderStoreId.error.flatten().fieldErrors.SSLCOMMERZ_STORE_ID?.[0]).toContain(
+          'must not use placeholder credentials',
+        );
+      }
+
+      const placeholderPassword = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_STORE_ID: 'real_store_12345',
+        SSLCOMMERZ_STORE_PASSWORD: 'digitaldepot_sandbox_password',
+      });
+      expect(placeholderPassword.success).toBe(false);
+      if (!placeholderPassword.success) {
+        expect(
+          placeholderPassword.error.flatten().fieldErrors.SSLCOMMERZ_STORE_PASSWORD?.[0],
+        ).toContain('must not use placeholder credentials');
+      }
+    });
+  });
+
+  describe('Security Secrets Enforcement', () => {
     it('rejects OAUTH_ENCRYPTION_SECRET that is not exactly 64 hex characters (32 decoded bytes)', () => {
       const tooLong = envSchema.safeParse({
         ...baseValidProdEnv,
@@ -177,84 +402,48 @@ describe('Environment Configuration Validation (envSchema)', () => {
       expect(invalidLength.success).toBe(false);
     });
 
-    it('rejects default or invalid OAuth configuration in production', () => {
-      // Default google client id
-      const res1 = envSchema.safeParse({
+    it('rejects default security secrets in production', () => {
+      const resJwt = envSchema.safeParse({
         ...baseValidProdEnv,
-        GOOGLE_CLIENT_ID: 'dev-google-client-id',
+        JWT_ACCESS_SECRET: 'dev-jwt-access-secret-minimum-32-characters-long',
       });
-      expect(res1.success).toBe(false);
+      expect(resJwt.success).toBe(false);
+      if (!resJwt.success) {
+        expect(resJwt.error.flatten().fieldErrors.JWT_ACCESS_SECRET?.[0]).toContain(
+          'must be set to a secure secret in production',
+        );
+      }
 
-      // Google client id without apps.googleusercontent.com suffix
-      const res2 = envSchema.safeParse({
+      const resCsrf = envSchema.safeParse({
         ...baseValidProdEnv,
-        GOOGLE_CLIENT_ID: 'invalid-client-id.example.com',
+        CSRF_SECRET: 'dev-csrf-secret-minimum-32-characters-long-key',
       });
-      expect(res2.success).toBe(false);
+      expect(resCsrf.success).toBe(false);
+      if (!resCsrf.success) {
+        expect(resCsrf.error.flatten().fieldErrors.CSRF_SECRET?.[0]).toContain(
+          'must be set to a secure secret in production',
+        );
+      }
 
-      // Default google client secret
-      const res3 = envSchema.safeParse({
-        ...baseValidProdEnv,
-        GOOGLE_CLIENT_SECRET: 'dev-google-client-secret',
-      });
-      expect(res3.success).toBe(false);
-
-      // Non-https callback url
-      const res4 = envSchema.safeParse({
-        ...baseValidProdEnv,
-        GOOGLE_CALLBACK_URL: 'http://digitaldepot.com/api/auth/oauth/google/callback',
-      });
-      expect(res4.success).toBe(false);
-
-      // Default oauth encryption secret in prod
-      const res5 = envSchema.safeParse({
+      const resOauthEnc = envSchema.safeParse({
         ...baseValidProdEnv,
         OAUTH_ENCRYPTION_SECRET: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
       });
-      expect(res5.success).toBe(false);
+      expect(resOauthEnc.success).toBe(false);
+      if (!resOauthEnc.success) {
+        expect(resOauthEnc.error.flatten().fieldErrors.OAUTH_ENCRYPTION_SECRET?.[0]).toContain(
+          'must be set to a secure unique 64-hex key',
+        );
+      }
 
-      // Default oauth state secret in prod
-      const res6 = envSchema.safeParse({
+      const resOauthState = envSchema.safeParse({
         ...baseValidProdEnv,
         OAUTH_STATE_SECRET: 'dev-oauth-state-secret-minimum-32-characters-long!',
       });
-      expect(res6.success).toBe(false);
-    });
-
-    it('rejects sandbox mode and default credentials in production', () => {
-      // Sandbox mode true in prod
-      const resSandbox = envSchema.safeParse({
-        ...baseValidProdEnv,
-        SSLCOMMERZ_IS_SANDBOX: true,
-      });
-      expect(resSandbox.success).toBe(false);
-      if (!resSandbox.success) {
-        expect(resSandbox.error.flatten().fieldErrors.SSLCOMMERZ_IS_SANDBOX?.[0]).toContain(
-          'SSLCOMMERZ_IS_SANDBOX must be false',
-        );
-      }
-
-      // Default store id in prod
-      const resStoreId = envSchema.safeParse({
-        ...baseValidProdEnv,
-        SSLCOMMERZ_STORE_ID: 'digitaldepot_sandbox_store',
-      });
-      expect(resStoreId.success).toBe(false);
-      if (!resStoreId.success) {
-        expect(resStoreId.error.flatten().fieldErrors.SSLCOMMERZ_STORE_ID?.[0]).toContain(
-          'SSLCOMMERZ_STORE_ID must be configured',
-        );
-      }
-
-      // Default store password in prod
-      const resPassword = envSchema.safeParse({
-        ...baseValidProdEnv,
-        SSLCOMMERZ_STORE_PASSWORD: 'digitaldepot_sandbox_password',
-      });
-      expect(resPassword.success).toBe(false);
-      if (!resPassword.success) {
-        expect(resPassword.error.flatten().fieldErrors.SSLCOMMERZ_STORE_PASSWORD?.[0]).toContain(
-          'SSLCOMMERZ_STORE_PASSWORD must be configured',
+      expect(resOauthState.success).toBe(false);
+      if (!resOauthState.success) {
+        expect(resOauthState.error.flatten().fieldErrors.OAUTH_STATE_SECRET?.[0]).toContain(
+          'must be set to a secure unique 32-character key',
         );
       }
     });

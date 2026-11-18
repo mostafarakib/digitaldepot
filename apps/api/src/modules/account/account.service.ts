@@ -5,6 +5,7 @@ import {
   ConflictError,
   ForbiddenError,
   UnauthorizedError,
+  ServiceUnavailableError,
 } from '../../lib/errors.js';
 import {
   type UpdateProfileInput,
@@ -127,6 +128,13 @@ export class AccountService {
     statePrefix: string;
     hmac: string;
   }> {
+    if (!googleOAuthService.isConfigured()) {
+      throw new ServiceUnavailableError(
+        'OAUTH_NOT_CONFIGURED',
+        'Google OAuth is not configured on this server',
+      );
+    }
+
     const existing = await prisma.oAuthAccount.findFirst({
       where: { userId, provider: OAUTH_PROVIDER_GOOGLE },
     });

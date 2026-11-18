@@ -87,7 +87,7 @@ describe('OAuth LINK Callback Integration Tests (Phase 3E-2)', () => {
     })
       .setProtectedHeader({ alg: 'RS256', kid: 'test-google-key-id' })
       .setIssuer('https://accounts.google.com')
-      .setAudience(env.GOOGLE_CLIENT_ID)
+      .setAudience(env.GOOGLE_CLIENT_ID!)
       .setIssuedAt(now)
       .setExpirationTime(now + 3600)
       .sign(keyPair.privateKey);

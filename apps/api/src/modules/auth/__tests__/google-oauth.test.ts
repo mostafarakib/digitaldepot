@@ -94,7 +94,7 @@ describe('Google OAuth Integration Tests (Phase 3E-1)', () => {
     const jwt = new jose.SignJWT(claims)
       .setProtectedHeader({ alg: 'RS256', kid: 'test-google-key-id' })
       .setIssuer(params.issuer ?? 'https://accounts.google.com')
-      .setAudience(params.audience ?? env.GOOGLE_CLIENT_ID)
+      .setAudience(params.audience ?? env.GOOGLE_CLIENT_ID!)
       .setExpirationTime(params.expiresIn ?? '1h');
 
     if (params.iat !== undefined) {
@@ -569,7 +569,7 @@ describe('Google OAuth Integration Tests (Phase 3E-1)', () => {
         sub: 'google-sub-multi-aud-valid',
         email: 'multiaud.valid@example.com',
         nonce,
-        audience: [env.GOOGLE_CLIENT_ID, 'other-trusted-app-client-id'],
+        audience: [env.GOOGLE_CLIENT_ID!, 'other-trusted-app-client-id'],
         azp: env.GOOGLE_CLIENT_ID,
       });
 
@@ -590,7 +590,7 @@ describe('Google OAuth Integration Tests (Phase 3E-1)', () => {
         sub: 'google-sub-multi-aud-no-azp',
         email: 'multiaud.noazp@example.com',
         nonce,
-        audience: [env.GOOGLE_CLIENT_ID, 'other-trusted-app-client-id'],
+        audience: [env.GOOGLE_CLIENT_ID!, 'other-trusted-app-client-id'],
       });
 
       const res = await request(app)
@@ -609,7 +609,7 @@ describe('Google OAuth Integration Tests (Phase 3E-1)', () => {
         sub: 'google-sub-multi-aud-bad-azp',
         email: 'multiaud.badazp@example.com',
         nonce,
-        audience: [env.GOOGLE_CLIENT_ID, 'other-trusted-app-client-id'],
+        audience: [env.GOOGLE_CLIENT_ID!, 'other-trusted-app-client-id'],
         azp: 'unauthorized-client-id',
       });
 
@@ -1020,6 +1020,41 @@ describe('Google OAuth Integration Tests (Phase 3E-1)', () => {
           password: 'CorrectPassword123!',
         });
       expect(resBadOrigin.status).toBe(403);
+    });
+  });
+
+  describe('Unconfigured Google OAuth Safety', () => {
+    it('returns 503 SERVICE_UNAVAILABLE on GET /api/v1/auth/oauth/google when unconfigured', async () => {
+      const spy = vi.spyOn(googleOAuthService, 'isConfigured').mockReturnValue(false);
+      try {
+        const res = await request(app)
+          .get('/api/v1/auth/oauth/google')
+          .set('Origin', env.FRONTEND_URL);
+
+        expect(res.status).toBe(503);
+        expect(res.body.error.code).toBe('OAUTH_NOT_CONFIGURED');
+
+        // Verify no orphaned OAuthTransaction was created
+        const txCount = await prisma.oAuthTransaction.count();
+        expect(txCount).toBe(0);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it('returns 503 SERVICE_UNAVAILABLE on POST /api/v1/auth/oauth/google/callback when unconfigured', async () => {
+      const spy = vi.spyOn(googleOAuthService, 'isConfigured').mockReturnValue(false);
+      try {
+        const res = await request(app)
+          .post('/api/v1/auth/oauth/google/callback')
+          .set('Origin', env.FRONTEND_URL)
+          .send({ code: 'some-code', state: '0123456789abcdef-rest-of-state' });
+
+        expect(res.status).toBe(503);
+        expect(res.body.error.code).toBe('OAUTH_NOT_CONFIGURED');
+      } finally {
+        spy.mockRestore();
+      }
     });
   });
 });

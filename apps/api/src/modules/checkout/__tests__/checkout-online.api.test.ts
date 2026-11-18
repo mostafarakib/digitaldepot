@@ -430,5 +430,40 @@ describe('Phase 6C: SSLCommerz Sandbox Online Checkout API', () => {
       });
       expect(couponUsage).toBe(0);
     });
+
+    it('fails safely with 503 SERVICE_UNAVAILABLE when payment gateway is unconfigured', async () => {
+      const { user, customerCookie } = await createCustomer('online-unconfigured@example.com');
+      const { variant } = await createPublishedProduct({ initialPrice: 100000, initialStock: 5 });
+      const address = await createCustomerAddress(user.id);
+
+      await prisma.cart.create({
+        data: {
+          userId: user.id,
+          items: {
+            create: {
+              variantId: variant.id,
+              quantity: 1,
+              unitPriceAtAdd: 100000,
+            },
+          },
+        },
+      });
+
+      vi.spyOn(sslcommerzService, 'isConfigured').mockReturnValue(false);
+
+      const res = await request(app)
+        .post('/api/v1/checkout/online')
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({ addressId: address.id });
+
+      expect(res.status).toBe(503);
+      expect(res.body.error.code).toBe('PAYMENT_GATEWAY_NOT_CONFIGURED');
+
+      // Verify no order was created
+      const orderCount = await prisma.order.count({ where: { userId: user.id } });
+      expect(orderCount).toBe(0);
+    });
   });
 });

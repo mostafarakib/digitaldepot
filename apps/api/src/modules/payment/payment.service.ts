@@ -87,7 +87,10 @@ export class PaymentService {
     }
 
     // Verify store identity if returned by gateway
-    if (valData.store_id && valData.store_id !== env.SSLCOMMERZ_STORE_ID) {
+    if (
+      valData.store_id &&
+      (!env.SSLCOMMERZ_STORE_ID || valData.store_id !== env.SSLCOMMERZ_STORE_ID)
+    ) {
       logger.error(
         { reportedStoreId: valData.store_id, expectedStoreId: env.SSLCOMMERZ_STORE_ID },
         'Store ID mismatch in gateway validation',
