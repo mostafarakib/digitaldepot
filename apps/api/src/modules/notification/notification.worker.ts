@@ -267,6 +267,7 @@ export class NotificationWorker {
 
     const sanitized = message
       .replace(/bearer\s+[a-z0-9._-]+/gi, 'Bearer [REDACTED]')
+      .replace(/xkeysib-[a-z0-9._-]+/gi, '[REDACTED]')
       .replace(/(api[_-]?key|secret|password|token)[:=]\s*[^\s,]+/gi, '$1=[REDACTED]');
 
     return sanitized.slice(0, 500);

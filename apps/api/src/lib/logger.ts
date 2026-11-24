@@ -22,6 +22,9 @@ const redactOptions = {
     'refreshToken',
     'apiKey',
     'resendApiKey',
+    'brevoApiKey',
+    '*.resendApiKey',
+    '*.brevoApiKey',
   ],
   censor: '[REDACTED]',
 };

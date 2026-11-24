@@ -104,9 +104,10 @@ export const envSchema = z
     ADMIN_INITIAL_EMAIL: z.string().email().optional(),
     ADMIN_INITIAL_PASSWORD: z.string().min(16).optional(),
     TRUST_PROXY: z.string().default('loopback'),
-    EMAIL_PROVIDER: z.enum(['console', 'resend']).default('console'),
+    EMAIL_PROVIDER: z.enum(['console', 'resend', 'brevo']).default('console'),
     EMAIL_FROM: z.string().default('DigitalDepot <noreply@digitaldepot.com>'),
     RESEND_API_KEY: z.string().optional(),
+    BREVO_API_KEY: z.string().optional(),
     GOOGLE_CLIENT_ID: optionalTrimmedString,
     GOOGLE_CLIENT_SECRET: optionalTrimmedString,
     GOOGLE_CALLBACK_URL: z
@@ -258,6 +259,19 @@ export const envSchema = z
       });
     }
 
+    if (data.EMAIL_PROVIDER === 'brevo') {
+      if (!data.BREVO_API_KEY || data.BREVO_API_KEY.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            data.NODE_ENV === 'production'
+              ? 'In production, BREVO_API_KEY is required and cannot be empty'
+              : 'BREVO_API_KEY is required and cannot be empty when EMAIL_PROVIDER is "brevo"',
+          path: ['BREVO_API_KEY'],
+        });
+      }
+    }
+
     if (data.NODE_ENV === 'production') {
       if (data.JWT_ACCESS_SECRET === 'dev-jwt-access-secret-minimum-32-characters-long') {
         ctx.addIssue({
@@ -275,18 +289,21 @@ export const envSchema = z
         });
       }
 
-      // In production, EMAIL_PROVIDER must be 'resend'
-      if (data.EMAIL_PROVIDER !== 'resend') {
+      // In production, EMAIL_PROVIDER must be 'brevo' or 'resend'
+      if (data.EMAIL_PROVIDER === 'console') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
-            'In production, EMAIL_PROVIDER must be "resend" (console transport is forbidden in production)',
+            'In production, EMAIL_PROVIDER must be "brevo" or "resend" (console transport is forbidden in production)',
           path: ['EMAIL_PROVIDER'],
         });
       }
 
-      // In production, RESEND_API_KEY is required and cannot be empty
-      if (!data.RESEND_API_KEY || data.RESEND_API_KEY.trim().length === 0) {
+      // In production, RESEND_API_KEY is required when EMAIL_PROVIDER is 'resend'
+      if (
+        data.EMAIL_PROVIDER === 'resend' &&
+        (!data.RESEND_API_KEY || data.RESEND_API_KEY.trim().length === 0)
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'In production, RESEND_API_KEY is required and cannot be empty',

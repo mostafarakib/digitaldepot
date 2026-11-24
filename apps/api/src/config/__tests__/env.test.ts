@@ -131,6 +131,68 @@ describe('Environment Configuration Validation (envSchema)', () => {
       }
     });
 
+    it('d2. Production + valid Brevo configuration → accepted (without requiring RESEND_API_KEY)', () => {
+      const result = envSchema.safeParse({
+        ...baseValidProdEnv,
+        EMAIL_PROVIDER: 'brevo',
+        BREVO_API_KEY: 'xkeysib-production-key-12345',
+        RESEND_API_KEY: undefined,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.NODE_ENV).toBe('production');
+        expect(result.data.EMAIL_PROVIDER).toBe('brevo');
+        expect(result.data.BREVO_API_KEY).toBe('xkeysib-production-key-12345');
+        expect(result.data.RESEND_API_KEY).toBeUndefined();
+      }
+    });
+
+    it('d3. Production + Brevo + missing or empty BREVO_API_KEY → rejected', () => {
+      const missingKey = envSchema.safeParse({
+        ...baseValidProdEnv,
+        EMAIL_PROVIDER: 'brevo',
+        BREVO_API_KEY: undefined,
+        RESEND_API_KEY: undefined,
+      });
+
+      expect(missingKey.success).toBe(false);
+      if (!missingKey.success) {
+        const errors = missingKey.error.flatten().fieldErrors;
+        expect(errors.BREVO_API_KEY?.[0]).toContain('BREVO_API_KEY is required');
+      }
+
+      const emptyKey = envSchema.safeParse({
+        ...baseValidProdEnv,
+        EMAIL_PROVIDER: 'brevo',
+        BREVO_API_KEY: '   ',
+        RESEND_API_KEY: undefined,
+      });
+
+      expect(emptyKey.success).toBe(false);
+      if (!emptyKey.success) {
+        const errors = emptyKey.error.flatten().fieldErrors;
+        expect(errors.BREVO_API_KEY?.[0]).toContain(
+          'BREVO_API_KEY is required and cannot be empty',
+        );
+      }
+    });
+
+    it('d4. Development + Brevo + missing BREVO_API_KEY → rejected (no silent fallback)', () => {
+      const devBrevoNoKey = envSchema.safeParse({
+        NODE_ENV: 'development',
+        DATABASE_URL: 'postgresql://user:pass@localhost:5432/digitaldepot',
+        EMAIL_PROVIDER: 'brevo',
+        BREVO_API_KEY: undefined,
+      });
+
+      expect(devBrevoNoKey.success).toBe(false);
+      if (!devBrevoNoKey.success) {
+        const errors = devBrevoNoKey.error.flatten().fieldErrors;
+        expect(errors.BREVO_API_KEY?.[0]).toContain('BREVO_API_KEY is required');
+      }
+    });
+
     it('e. Development/test + console → accepted', () => {
       const devEnv = {
         NODE_ENV: 'development',
