@@ -25,6 +25,10 @@ const redactOptions = {
     'brevoApiKey',
     '*.resendApiKey',
     '*.brevoApiKey',
+    'cloudinaryApiSecret',
+    '*.cloudinaryApiSecret',
+    'api_secret',
+    '*.api_secret',
   ],
   censor: '[REDACTED]',
 };

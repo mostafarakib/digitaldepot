@@ -4,6 +4,7 @@ import {
   isValidSenderAddress,
   isGoogleOAuthConfigured,
   isSslcommerzConfigured,
+  isCloudinaryConfigured,
 } from '../env.js';
 
 describe('Environment Configuration Validation (envSchema)', () => {
@@ -506,6 +507,64 @@ describe('Environment Configuration Validation (envSchema)', () => {
       if (!resOauthState.success) {
         expect(resOauthState.error.flatten().fieldErrors.OAUTH_STATE_SECRET?.[0]).toContain(
           'must be set to a secure unique 32-character key',
+        );
+      }
+    });
+  });
+
+  describe('Cloudinary Configuration Rules', () => {
+    it('allows startup without Cloudinary credentials', () => {
+      const res = envSchema.safeParse({
+        ...baseValidProdEnv,
+        CLOUDINARY_CLOUD_NAME: undefined,
+        CLOUDINARY_API_KEY: undefined,
+        CLOUDINARY_API_SECRET: undefined,
+      });
+
+      expect(res.success).toBe(true);
+      if (res.success) {
+        expect(isCloudinaryConfigured(res.data)).toBe(false);
+      }
+    });
+
+    it('accepts complete non-placeholder Cloudinary credentials', () => {
+      const res = envSchema.safeParse({
+        ...baseValidProdEnv,
+        CLOUDINARY_CLOUD_NAME: 'digitaldepot-prod',
+        CLOUDINARY_API_KEY: '998877665544332',
+        CLOUDINARY_API_SECRET: 'real-cloudinary-api-secret-xyz',
+      });
+
+      expect(res.success).toBe(true);
+      if (res.success) {
+        expect(isCloudinaryConfigured(res.data)).toBe(true);
+      }
+    });
+
+    it('rejects partial or placeholder Cloudinary credentials', () => {
+      const partial = envSchema.safeParse({
+        ...baseValidProdEnv,
+        CLOUDINARY_CLOUD_NAME: 'digitaldepot-prod',
+        CLOUDINARY_API_KEY: undefined,
+        CLOUDINARY_API_SECRET: undefined,
+      });
+      expect(partial.success).toBe(false);
+      if (!partial.success) {
+        expect(partial.error.flatten().fieldErrors.CLOUDINARY_API_KEY?.[0]).toContain(
+          'CLOUDINARY_API_KEY is required',
+        );
+      }
+
+      const placeholder = envSchema.safeParse({
+        ...baseValidProdEnv,
+        CLOUDINARY_CLOUD_NAME: 'your-cloudinary-cloud-name',
+        CLOUDINARY_API_KEY: '998877665544332',
+        CLOUDINARY_API_SECRET: 'real-secret',
+      });
+      expect(placeholder.success).toBe(false);
+      if (!placeholder.success) {
+        expect(placeholder.error.flatten().fieldErrors.CLOUDINARY_CLOUD_NAME?.[0]).toContain(
+          'must not use placeholder credentials',
         );
       }
     });

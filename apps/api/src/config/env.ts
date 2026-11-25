@@ -28,6 +28,19 @@ export const PLACEHOLDER_SSLCOMMERZ_STORE_PASSWORDS = new Set([
   'your_store_password',
 ]);
 
+export const PLACEHOLDER_CLOUDINARY_CLOUD_NAMES = new Set([
+  'your-cloud-name',
+  'your-cloudinary-cloud-name',
+  'demo',
+]);
+
+export const PLACEHOLDER_CLOUDINARY_API_KEYS = new Set(['your-cloudinary-api-key', 'your-api-key']);
+
+export const PLACEHOLDER_CLOUDINARY_API_SECRETS = new Set([
+  'your-cloudinary-api-secret',
+  'your-api-secret',
+]);
+
 export function isValidSenderAddress(from: string): boolean {
   const trimmed = from.trim();
   if (!trimmed) return false;
@@ -62,6 +75,24 @@ export function isSslcommerzConfigured(cfg: {
     storePassword &&
     !PLACEHOLDER_SSLCOMMERZ_STORE_IDS.has(storeId) &&
     !PLACEHOLDER_SSLCOMMERZ_STORE_PASSWORDS.has(storePassword),
+  );
+}
+
+export function isCloudinaryConfigured(cfg: {
+  CLOUDINARY_CLOUD_NAME?: string;
+  CLOUDINARY_API_KEY?: string;
+  CLOUDINARY_API_SECRET?: string;
+}): boolean {
+  const cloudName = cfg.CLOUDINARY_CLOUD_NAME?.trim();
+  const apiKey = cfg.CLOUDINARY_API_KEY?.trim();
+  const apiSecret = cfg.CLOUDINARY_API_SECRET?.trim();
+  return Boolean(
+    cloudName &&
+    apiKey &&
+    apiSecret &&
+    !PLACEHOLDER_CLOUDINARY_CLOUD_NAMES.has(cloudName) &&
+    !PLACEHOLDER_CLOUDINARY_API_KEYS.has(apiKey) &&
+    !PLACEHOLDER_CLOUDINARY_API_SECRETS.has(apiSecret),
   );
 }
 
@@ -129,6 +160,9 @@ export const envSchema = z
     SSLCOMMERZ_STORE_ID: optionalTrimmedString,
     SSLCOMMERZ_STORE_PASSWORD: optionalTrimmedString,
     SSLCOMMERZ_IS_SANDBOX: optionalBooleanEnv,
+    CLOUDINARY_CLOUD_NAME: optionalTrimmedString,
+    CLOUDINARY_API_KEY: optionalTrimmedString,
+    CLOUDINARY_API_SECRET: optionalTrimmedString,
   })
   .superRefine((data, ctx) => {
     // Exact 32 decoded bytes validation for AES-256-GCM
@@ -256,6 +290,70 @@ export const envSchema = z
         message:
           'In production, SSLCOMMERZ_IS_SANDBOX must be explicitly set to "true" (sandbox) or "false" (live) when SSLCommerz credentials are configured',
         path: ['SSLCOMMERZ_IS_SANDBOX'],
+      });
+    }
+
+    // Cloudinary validation: optional to start API, never accepts partial or placeholder credentials
+    const hasCloudinaryCloudName = Boolean(data.CLOUDINARY_CLOUD_NAME);
+    const hasCloudinaryApiKey = Boolean(data.CLOUDINARY_API_KEY);
+    const hasCloudinaryApiSecret = Boolean(data.CLOUDINARY_API_SECRET);
+    const hasAnyCloudinary =
+      hasCloudinaryCloudName || hasCloudinaryApiKey || hasCloudinaryApiSecret;
+
+    if (hasAnyCloudinary) {
+      if (!hasCloudinaryCloudName) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'CLOUDINARY_CLOUD_NAME is required when Cloudinary credentials are partially configured',
+          path: ['CLOUDINARY_CLOUD_NAME'],
+        });
+      }
+      if (!hasCloudinaryApiKey) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'CLOUDINARY_API_KEY is required when Cloudinary credentials are partially configured',
+          path: ['CLOUDINARY_API_KEY'],
+        });
+      }
+      if (!hasCloudinaryApiSecret) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'CLOUDINARY_API_SECRET is required when Cloudinary credentials are partially configured',
+          path: ['CLOUDINARY_API_SECRET'],
+        });
+      }
+    }
+
+    if (
+      hasCloudinaryCloudName &&
+      PLACEHOLDER_CLOUDINARY_CLOUD_NAMES.has(data.CLOUDINARY_CLOUD_NAME!)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'CLOUDINARY_CLOUD_NAME must not use placeholder credentials',
+        path: ['CLOUDINARY_CLOUD_NAME'],
+      });
+    }
+
+    if (hasCloudinaryApiKey && PLACEHOLDER_CLOUDINARY_API_KEYS.has(data.CLOUDINARY_API_KEY!)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'CLOUDINARY_API_KEY must not use placeholder credentials',
+        path: ['CLOUDINARY_API_KEY'],
+      });
+    }
+
+    if (
+      hasCloudinaryApiSecret &&
+      PLACEHOLDER_CLOUDINARY_API_SECRETS.has(data.CLOUDINARY_API_SECRET!)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'CLOUDINARY_API_SECRET must not use placeholder credentials',
+        path: ['CLOUDINARY_API_SECRET'],
       });
     }
 
