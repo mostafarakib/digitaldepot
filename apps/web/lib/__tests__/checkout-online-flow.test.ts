@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { submitOnlineCheckoutApi, setInMemoryCsrfToken } from '../api-client';
+import {
+  submitOnlineCheckoutApi,
+  getOrderConfirmationApi,
+  setInMemoryCsrfToken,
+} from '../api-client';
+import {
+  resolveAuthoritativePaymentStatus,
+  resolveFallbackWithoutOrder,
+} from '../payment-result';
 
 describe('Checkout Online Client API Helpers & Flow Logic (Phase 6C)', () => {
   const originalFetch = global.fetch;
@@ -183,6 +191,81 @@ describe('Checkout Online Client API Helpers & Flow Logic (Phase 6C)', () => {
         status: 400,
         code: 'EMPTY_CART',
       });
+    });
+  });
+
+  describe('Authoritative PaymentResultView resolution & delayed IPN handling', () => {
+    it('maps backend order and payment statuses authoritatively', () => {
+      expect(resolveAuthoritativePaymentStatus({ status: 'CONFIRMED', paymentStatus: 'PAID' })).toBe(
+        'SUCCESS',
+      );
+      expect(resolveAuthoritativePaymentStatus({ status: 'CANCELLED', paymentStatus: 'PAID' })).toBe(
+        'LATE_PAYMENT',
+      );
+      expect(resolveAuthoritativePaymentStatus({ status: 'PENDING', paymentStatus: 'PENDING' })).toBe(
+        'PENDING',
+      );
+      expect(
+        resolveAuthoritativePaymentStatus({ status: 'CANCELLED', paymentStatus: 'CANCELLED' }),
+      ).toBe('CANCELLED');
+      expect(resolveAuthoritativePaymentStatus({ status: 'CANCELLED', paymentStatus: 'FAILED' })).toBe(
+        'FAILED',
+      );
+    });
+
+    it('never trusts URL status=SUCCESS when no orderNumber is present', () => {
+      expect(resolveFallbackWithoutOrder('SUCCESS')).toBe('FAILED');
+      expect(resolveFallbackWithoutOrder('CANCELLED')).toBe('CANCELLED');
+      expect(resolveFallbackWithoutOrder('PENDING')).toBe('PENDING');
+      expect(resolveFallbackWithoutOrder(undefined)).toBe('FAILED');
+    });
+
+    it('supports delayed IPN transition from PENDING to PAID via confirmation polling', async () => {
+      let callCount = 0;
+      global.fetch = vi.fn().mockImplementation(async () => {
+        callCount += 1;
+        const isPaid = callCount >= 2;
+        return {
+          ok: true,
+          status: 200,
+          headers: new Headers({ 'content-type': 'application/json' }),
+          json: async () => ({
+            success: true,
+            data: {
+              order: {
+                id: 'ord-delayed-1',
+                orderNumber: 'DD-20261126-DELAY001',
+                status: isPaid ? 'CONFIRMED' : 'PENDING',
+                paymentStatus: isPaid ? 'PAID' : 'PENDING',
+                paymentMethod: 'SSLCOMMERZ',
+                merchandiseSubtotal: 100000,
+                discountAmount: 0,
+                shippingFee: 6000,
+                totalPayable: 106000,
+                shippingAddress: {
+                  recipientName: 'Test',
+                  phone: '+8801700000001',
+                  alternativePhone: null,
+                  divisionId: 'DHAKA',
+                  districtId: 'DHAKA',
+                  upazila: 'Dhanmondi',
+                  streetAddress: 'Road 4',
+                  deliveryNotes: null,
+                },
+                coupon: null,
+                items: [],
+                createdAt: '2026-11-26T00:00:00.000Z',
+              },
+            },
+          }),
+        } as unknown as Response;
+      });
+
+      const firstPoll = await getOrderConfirmationApi('DD-20261126-DELAY001');
+      expect(resolveAuthoritativePaymentStatus(firstPoll.order)).toBe('PENDING');
+
+      const secondPoll = await getOrderConfirmationApi('DD-20261126-DELAY001');
+      expect(resolveAuthoritativePaymentStatus(secondPoll.order)).toBe('SUCCESS');
     });
   });
 });

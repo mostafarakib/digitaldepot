@@ -124,6 +124,10 @@ export class CheckoutController {
     });
 
     const payment = order.payments[0];
+    const shippingAddress = await prisma.address.findFirst({
+      where: { id: input.addressId, userId: req.user.id },
+      select: { postalCode: true },
+    });
 
     // 2. Outside Transaction: Call SSLCommerz Session Initiation
     let sessionResult: { gatewayUrl: string; sessionKey: string };
@@ -132,6 +136,7 @@ export class CheckoutController {
         order,
         payment,
         customerEmail: req.user.email,
+        shippingPostcode: shippingAddress?.postalCode,
       });
     } catch (gatewayErr) {
       // 3. Compensation in a separate transaction if initiation fails

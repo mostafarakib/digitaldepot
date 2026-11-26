@@ -214,6 +214,13 @@ export function CheckoutView() {
       return;
     }
 
+    const activeAddress =
+      addresses.find((a) => a.id === selectedAddressId) || validationResult?.address || null;
+    if (paymentMethod === 'SSLCOMMERZ' && !activeAddress?.postalCode?.trim()) {
+      setValidationError(t('blockerPostalCodeRequired'));
+      return;
+    }
+
     setIsSubmitting(true);
     setValidationError(null);
 

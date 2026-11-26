@@ -1,6 +1,6 @@
 import { env, isSslcommerzConfigured } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
-import { ServiceUnavailableError } from '../../lib/errors.js';
+import { BadRequestError, ServiceUnavailableError } from '../../lib/errors.js';
 import type { OrderWithDetails } from '../order/order.types.js';
 import type { Payment } from '../../generated/client/client.js';
 
@@ -8,6 +8,7 @@ export interface InitiateSessionParams {
   order: OrderWithDetails;
   payment: Payment;
   customerEmail: string;
+  shippingPostcode?: string | null;
 }
 
 export interface InitiateSessionResult {
@@ -45,7 +46,18 @@ export interface SslcommerzRefundResult {
   raw: Record<string, unknown>;
 }
 
+const DEFAULT_GATEWAY_TIMEOUT_MS = 15_000;
+
 export class SslcommerzService {
+  private readonly requestTimeoutMs: number;
+
+  constructor(options?: { requestTimeoutMs?: number }) {
+    this.requestTimeoutMs = options?.requestTimeoutMs ?? DEFAULT_GATEWAY_TIMEOUT_MS;
+  }
+
+  private isTimeoutError(err: unknown): boolean {
+    return err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+  }
   /**
    * Returns true if valid non-placeholder SSLCommerz credentials are configured.
    */
@@ -82,6 +94,13 @@ export class SslcommerzService {
   async initiateSession(params: InitiateSessionParams): Promise<InitiateSessionResult> {
     const { storeId, storePassword } = this.assertConfigured();
     const { order, payment, customerEmail } = params;
+    const shipPostcode = params.shippingPostcode?.trim();
+    if (!shipPostcode) {
+      throw new BadRequestError(
+        'POSTAL_CODE_REQUIRED',
+        'A valid shipping postal code is required for online payment.',
+      );
+    }
     const baseUrl = this.getBaseUrl();
     const endpoint = `${baseUrl}/gwprocess/v4/api.php`;
 
@@ -97,16 +116,18 @@ export class SslcommerzService {
     formData.append('total_amount', totalAmount);
     formData.append('currency', 'BDT');
     formData.append('tran_id', payment.transactionId);
+    const ipnUrl = env.SSLCOMMERZ_IPN_URL ?? `${env.API_BASE_URL}/api/v1/payments/sslcommerz/ipn`;
     formData.append('success_url', `${env.API_BASE_URL}/api/v1/payments/sslcommerz/success`);
     formData.append('fail_url', `${env.API_BASE_URL}/api/v1/payments/sslcommerz/fail`);
     formData.append('cancel_url', `${env.API_BASE_URL}/api/v1/payments/sslcommerz/cancel`);
-    formData.append('ipn_url', `${env.API_BASE_URL}/api/v1/payments/sslcommerz/ipn`);
+    formData.append('ipn_url', ipnUrl);
 
     // Customer Information
     formData.append('cus_name', order.shippingRecipientName);
     formData.append('cus_email', customerEmail);
     formData.append('cus_add1', order.shippingStreetAddress);
     formData.append('cus_city', order.shippingDistrictId);
+    formData.append('cus_postcode', shipPostcode);
     formData.append('cus_country', 'Bangladesh');
     formData.append('cus_phone', order.shippingPhone);
 
@@ -116,6 +137,7 @@ export class SslcommerzService {
     formData.append('ship_name', order.shippingRecipientName);
     formData.append('ship_add1', order.shippingStreetAddress);
     formData.append('ship_city', order.shippingDistrictId);
+    formData.append('ship_postcode', shipPostcode);
     formData.append('ship_country', 'Bangladesh');
 
     // Product Information
@@ -141,8 +163,19 @@ export class SslcommerzService {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: formData.toString(),
+        signal: AbortSignal.timeout(this.requestTimeoutMs),
       });
     } catch (networkError) {
+      if (this.isTimeoutError(networkError)) {
+        logger.error(
+          { err: networkError, transactionId: payment.transactionId, timeoutMs: this.requestTimeoutMs },
+          'SSLCommerz session initiation timed out',
+        );
+        throw new ServiceUnavailableError(
+          'PAYMENT_GATEWAY_TIMEOUT',
+          `SSLCommerz session initiation timed out after ${this.requestTimeoutMs}ms`,
+        );
+      }
       logger.error(
         { err: networkError, transactionId: payment.transactionId },
         'SSLCommerz network connection error during session initiation',
@@ -206,8 +239,21 @@ export class SslcommerzService {
 
     let res: Response;
     try {
-      res = await fetch(endpoint, { method: 'GET' });
+      res = await fetch(endpoint, {
+        method: 'GET',
+        signal: AbortSignal.timeout(this.requestTimeoutMs),
+      });
     } catch (networkError) {
+      if (this.isTimeoutError(networkError)) {
+        logger.error(
+          { err: networkError, valId, timeoutMs: this.requestTimeoutMs },
+          'SSLCommerz order validation API timed out',
+        );
+        throw new ServiceUnavailableError(
+          'PAYMENT_GATEWAY_TIMEOUT',
+          `SSLCommerz validation API timed out after ${this.requestTimeoutMs}ms`,
+        );
+      }
       logger.error({ err: networkError, valId }, 'SSLCommerz validation API network error');
       throw new Error(
         `SSLCommerz validation API request failed: ${networkError instanceof Error ? networkError.message : 'Network error'}`,
@@ -274,15 +320,25 @@ export class SslcommerzService {
 
     let res: Response;
     try {
-      res = await fetch(`${endpoint}?${query.toString()}`, { method: 'GET' });
+      res = await fetch(`${endpoint}?${query.toString()}`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(this.requestTimeoutMs),
+      });
     } catch (networkError) {
+      const isTimeout = this.isTimeoutError(networkError);
       logger.error(
-        { err: networkError, refundRefId, bankTranId },
-        'SSLCommerz refund initiation network error (ambiguous outcome)',
+        { err: networkError, refundRefId, bankTranId, isTimeout },
+        isTimeout
+          ? 'SSLCommerz refund initiation timed out (ambiguous outcome)'
+          : 'SSLCommerz refund initiation network error (ambiguous outcome)',
       );
       return {
         status: 'AMBIGUOUS',
-        errorReason: networkError instanceof Error ? networkError.message : 'Network timeout/error',
+        errorReason: isTimeout
+          ? `SSLCommerz refund initiation timed out after ${this.requestTimeoutMs}ms`
+          : networkError instanceof Error
+            ? networkError.message
+            : 'Network timeout/error',
         raw: {},
       };
     }
@@ -369,15 +425,25 @@ export class SslcommerzService {
 
     let res: Response;
     try {
-      res = await fetch(`${endpoint}?${query.toString()}`, { method: 'GET' });
+      res = await fetch(`${endpoint}?${query.toString()}`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(this.requestTimeoutMs),
+      });
     } catch (networkError) {
+      const isTimeout = this.isTimeoutError(networkError);
       logger.error(
-        { err: networkError, refundRefId },
-        'SSLCommerz refund status query network error (ambiguous)',
+        { err: networkError, refundRefId, isTimeout },
+        isTimeout
+          ? 'SSLCommerz refund status query timed out (ambiguous)'
+          : 'SSLCommerz refund status query network error (ambiguous)',
       );
       return {
         status: 'AMBIGUOUS',
-        errorReason: networkError instanceof Error ? networkError.message : 'Network error',
+        errorReason: isTimeout
+          ? `SSLCommerz refund status query timed out after ${this.requestTimeoutMs}ms`
+          : networkError instanceof Error
+            ? networkError.message
+            : 'Network error',
         raw: {},
       };
     }

@@ -465,5 +465,59 @@ describe('Phase 6C: SSLCommerz Sandbox Online Checkout API', () => {
       const orderCount = await prisma.order.count({ where: { userId: user.id } });
       expect(orderCount).toBe(0);
     });
+
+    it('rejects online checkout with 400 POSTAL_CODE_REQUIRED when delivery address lacks postalCode', async () => {
+      const { user, customerCookie } = await createCustomer('online-no-postcode@example.com');
+      const { variant } = await createPublishedProduct({ initialPrice: 100000, initialStock: 5 });
+
+      const addressWithoutPostcode = await prisma.address.create({
+        data: {
+          userId: user.id,
+          recipientName: 'No Postcode User',
+          phone: '+8801700000009',
+          divisionId: 'DHAKA',
+          districtId: 'DHAKA',
+          upazila: 'Dhanmondi',
+          streetAddress: 'House 10',
+          postalCode: null,
+          isDefault: true,
+        },
+      });
+
+      await prisma.cart.create({
+        data: {
+          userId: user.id,
+          items: {
+            create: {
+              variantId: variant.id,
+              quantity: 1,
+              unitPriceAtAdd: 100000,
+            },
+          },
+        },
+      });
+
+      const initiateSpy = vi.spyOn(sslcommerzService, 'initiateSession');
+
+      const res = await request(app)
+        .post('/api/v1/checkout/online')
+        .set('Origin', env.FRONTEND_URL)
+        .set('x-csrf-token', csrfToken)
+        .set('Cookie', `${csrfCookie}; ${customerCookie}`)
+        .send({ addressId: addressWithoutPostcode.id });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error.code).toBe('POSTAL_CODE_REQUIRED');
+      expect(initiateSpy).not.toHaveBeenCalled();
+
+      const orderCount = await prisma.order.count({ where: { userId: user.id } });
+      expect(orderCount).toBe(0);
+
+      const inventory = await prisma.inventoryItem.findUniqueOrThrow({
+        where: { variantId: variant.id },
+      });
+      expect(inventory.reservedQuantity).toBe(0);
+      expect(inventory.quantity).toBe(5);
+    });
   });
 });

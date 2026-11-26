@@ -1,5 +1,6 @@
 import type { Request, Response } from 'express';
 import { env } from '../../config/env.js';
+import { ServiceUnavailableError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { paymentService } from './payment.service.js';
 import {
@@ -9,26 +10,39 @@ import {
   sslcommerzIpnCallbackSchema,
 } from './payment.schemas.js';
 
+function buildPaymentResultRedirectUrl(params: {
+  orderNumber?: string;
+  status: 'SUCCESS' | 'LATE_PAYMENT' | 'PENDING' | 'FAILED' | 'CANCELLED';
+}): string {
+  const targetUrl = new URL(`${env.FRONTEND_URL}/checkout/payment-result`);
+  const orderNumber = params.orderNumber?.trim();
+  if (orderNumber) {
+    targetUrl.searchParams.set('orderNumber', orderNumber);
+  }
+  targetUrl.searchParams.set('status', params.status);
+  return targetUrl.toString();
+}
+
 export class PaymentController {
   async handleSuccess(req: Request, res: Response): Promise<void> {
     try {
       const payload = sslcommerzSuccessCallbackSchema.parse(req.body || {});
       const result = await paymentService.handlePaymentSuccess(payload as Record<string, string>);
-      const targetUrl = new URL(`${env.FRONTEND_URL}/checkout/payment-result`);
-      targetUrl.searchParams.set('orderNumber', result.orderNumber);
-      targetUrl.searchParams.set('status', result.status);
-      res.redirect(targetUrl.toString());
-    } catch (err) {
-      logger.error({ err, body: req.body }, 'Payment success callback error or validation failure');
-      const targetUrl = new URL(`${env.FRONTEND_URL}/checkout/payment-result`);
-      const reportedTranId = typeof req.body?.tran_id === 'string' ? req.body.tran_id : '';
-      targetUrl.searchParams.set('orderNumber', reportedTranId);
-      targetUrl.searchParams.set('status', 'FAILED');
-      targetUrl.searchParams.set(
-        'reason',
-        err instanceof Error ? err.message : 'Payment verification failed',
+      res.redirect(
+        buildPaymentResultRedirectUrl({
+          orderNumber: result.orderNumber,
+          status: result.status,
+        }),
       );
-      res.redirect(targetUrl.toString());
+    } catch (err) {
+      logger.error({ err }, 'Payment success callback error or validation failure');
+      const isGatewayTimeout =
+        err instanceof ServiceUnavailableError && err.code === 'PAYMENT_GATEWAY_TIMEOUT';
+      res.redirect(
+        buildPaymentResultRedirectUrl({
+          status: isGatewayTimeout ? 'PENDING' : 'FAILED',
+        }),
+      );
     }
   }
 
@@ -36,20 +50,19 @@ export class PaymentController {
     try {
       const payload = sslcommerzFailCallbackSchema.parse(req.body || {});
       const result = await paymentService.handlePaymentFail(payload as Record<string, string>);
-      const targetUrl = new URL(`${env.FRONTEND_URL}/checkout/payment-result`);
-      targetUrl.searchParams.set('orderNumber', result.orderNumber);
-      targetUrl.searchParams.set('status', 'FAILED');
-      if (result.reason) {
-        targetUrl.searchParams.set('reason', result.reason);
-      }
-      res.redirect(targetUrl.toString());
+      res.redirect(
+        buildPaymentResultRedirectUrl({
+          orderNumber: result.orderNumber,
+          status: 'FAILED',
+        }),
+      );
     } catch (err) {
-      logger.error({ err, body: req.body }, 'Payment fail callback error or validation failure');
-      const targetUrl = new URL(`${env.FRONTEND_URL}/checkout/payment-result`);
-      const reportedTranId = typeof req.body?.tran_id === 'string' ? req.body.tran_id : '';
-      targetUrl.searchParams.set('orderNumber', reportedTranId);
-      targetUrl.searchParams.set('status', 'FAILED');
-      res.redirect(targetUrl.toString());
+      logger.error({ err }, 'Payment fail callback error or validation failure');
+      res.redirect(
+        buildPaymentResultRedirectUrl({
+          status: 'FAILED',
+        }),
+      );
     }
   }
 
@@ -57,20 +70,19 @@ export class PaymentController {
     try {
       const payload = sslcommerzCancelCallbackSchema.parse(req.body || {});
       const result = await paymentService.handlePaymentCancel(payload as Record<string, string>);
-      const targetUrl = new URL(`${env.FRONTEND_URL}/checkout/payment-result`);
-      targetUrl.searchParams.set('orderNumber', result.orderNumber);
-      targetUrl.searchParams.set('status', 'CANCELLED');
-      if (result.reason) {
-        targetUrl.searchParams.set('reason', result.reason);
-      }
-      res.redirect(targetUrl.toString());
+      res.redirect(
+        buildPaymentResultRedirectUrl({
+          orderNumber: result.orderNumber,
+          status: 'CANCELLED',
+        }),
+      );
     } catch (err) {
-      logger.error({ err, body: req.body }, 'Payment cancel callback error or validation failure');
-      const targetUrl = new URL(`${env.FRONTEND_URL}/checkout/payment-result`);
-      const reportedTranId = typeof req.body?.tran_id === 'string' ? req.body.tran_id : '';
-      targetUrl.searchParams.set('orderNumber', reportedTranId);
-      targetUrl.searchParams.set('status', 'CANCELLED');
-      res.redirect(targetUrl.toString());
+      logger.error({ err }, 'Payment cancel callback error or validation failure');
+      res.redirect(
+        buildPaymentResultRedirectUrl({
+          status: 'CANCELLED',
+        }),
+      );
     }
   }
 

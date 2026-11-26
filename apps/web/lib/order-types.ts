@@ -155,7 +155,13 @@ export interface OnlineCheckoutResponse {
   sessionKey: string;
 }
 
-export type PaymentResultStatus = 'SUCCESS' | 'LATE_PAYMENT' | 'FAILED' | 'CANCELLED';
+export type PaymentResultStatus =
+  | 'LOADING'
+  | 'SUCCESS'
+  | 'LATE_PAYMENT'
+  | 'PENDING'
+  | 'FAILED'
+  | 'CANCELLED';
 
 export interface OrderConfirmationData {
   order: ConfirmedOrderDetails;

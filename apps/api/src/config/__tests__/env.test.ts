@@ -390,6 +390,46 @@ describe('Environment Configuration Validation (envSchema)', () => {
       expect(invalidMode.success).toBe(false);
     });
 
+    it('validates optional SSLCOMMERZ_IPN_URL and requires HTTPS in production', () => {
+      const validHttps = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_IPN_URL: 'https://tunnel.example.com/api/v1/payments/sslcommerz/ipn',
+      });
+      expect(validHttps.success).toBe(true);
+      if (validHttps.success) {
+        expect(validHttps.data.SSLCOMMERZ_IPN_URL).toBe(
+          'https://tunnel.example.com/api/v1/payments/sslcommerz/ipn',
+        );
+      }
+
+      const emptyString = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_IPN_URL: '   ',
+      });
+      expect(emptyString.success).toBe(true);
+      if (emptyString.success) {
+        expect(emptyString.data.SSLCOMMERZ_IPN_URL).toBeUndefined();
+      }
+
+      const invalidUrl = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_IPN_URL: 'not-a-valid-url',
+      });
+      expect(invalidUrl.success).toBe(false);
+
+      const nonHttpScheme = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_IPN_URL: 'ftp://tunnel.example.com/ipn',
+      });
+      expect(nonHttpScheme.success).toBe(false);
+
+      const httpInProd = envSchema.safeParse({
+        ...baseValidProdEnv,
+        SSLCOMMERZ_IPN_URL: 'http://tunnel.example.com/api/v1/payments/sslcommerz/ipn',
+      });
+      expect(httpInProd.success).toBe(false);
+    });
+
     it('fails production startup with partially configured SSLCommerz', () => {
       const onlyStoreId = envSchema.safeParse({
         ...baseValidProdEnv,

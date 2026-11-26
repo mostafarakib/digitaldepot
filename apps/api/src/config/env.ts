@@ -160,6 +160,9 @@ export const envSchema = z
     SSLCOMMERZ_STORE_ID: optionalTrimmedString,
     SSLCOMMERZ_STORE_PASSWORD: optionalTrimmedString,
     SSLCOMMERZ_IS_SANDBOX: optionalBooleanEnv,
+    SSLCOMMERZ_IPN_URL: optionalTrimmedString.pipe(
+      z.string().url('SSLCOMMERZ_IPN_URL must be a valid URL').optional(),
+    ),
     CLOUDINARY_CLOUD_NAME: optionalTrimmedString,
     CLOUDINARY_API_KEY: optionalTrimmedString,
     CLOUDINARY_API_SECRET: optionalTrimmedString,
@@ -291,6 +294,29 @@ export const envSchema = z
           'In production, SSLCOMMERZ_IS_SANDBOX must be explicitly set to "true" (sandbox) or "false" (live) when SSLCommerz credentials are configured',
         path: ['SSLCOMMERZ_IS_SANDBOX'],
       });
+    }
+
+    if (data.SSLCOMMERZ_IPN_URL) {
+      let parsedIpnUrl: URL | null = null;
+      try {
+        parsedIpnUrl = new URL(data.SSLCOMMERZ_IPN_URL);
+      } catch {
+        parsedIpnUrl = null;
+      }
+
+      if (!parsedIpnUrl || (parsedIpnUrl.protocol !== 'http:' && parsedIpnUrl.protocol !== 'https:')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'SSLCOMMERZ_IPN_URL must use http:// or https:// protocol',
+          path: ['SSLCOMMERZ_IPN_URL'],
+        });
+      } else if (data.NODE_ENV === 'production' && parsedIpnUrl.protocol !== 'https:') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'In production, SSLCOMMERZ_IPN_URL must use https://',
+          path: ['SSLCOMMERZ_IPN_URL'],
+        });
+      }
     }
 
     // Cloudinary validation: optional to start API, never accepts partial or placeholder credentials

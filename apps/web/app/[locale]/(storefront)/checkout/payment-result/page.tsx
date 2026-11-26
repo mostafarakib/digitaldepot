@@ -35,8 +35,7 @@ export default async function PaymentResultPage({ searchParams }: PaymentResultP
     <AuthGuard returnUrl="/checkout">
       <PaymentResultView
         orderNumber={resolvedParams.orderNumber}
-        status={resolvedParams.status}
-        reason={resolvedParams.reason}
+        fallbackHint={resolvedParams.status}
       />
     </AuthGuard>
   );

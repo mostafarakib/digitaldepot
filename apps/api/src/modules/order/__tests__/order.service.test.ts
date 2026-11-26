@@ -36,6 +36,7 @@ describe('OrderService', () => {
         districtId: 'DHAKA',
         upazila: 'Dhanmondi',
         streetAddress: 'House 12, Road 5',
+        postalCode: '1205',
         isDefault: true,
       },
     });

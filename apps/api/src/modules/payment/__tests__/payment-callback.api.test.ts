@@ -471,5 +471,54 @@ describe('Phase 6C: SSLCommerz Payment Callbacks & IPN Webhook API', () => {
       expect(res.status).toBe(302);
       expect(res.header.location).toContain('status=FAILED');
     });
+
+    it('redirects with status=PENDING without TXN ID or raw errors when gateway validation times out', async () => {
+      const { order, payment } = await setupPendingOnlineOrder();
+      const { ServiceUnavailableError } = await import('../../../lib/errors.js');
+
+      vi.spyOn(sslcommerzService, 'validateOrder').mockRejectedValue(
+        new ServiceUnavailableError('PAYMENT_GATEWAY_TIMEOUT', 'SSLCommerz validation API timed out'),
+      );
+
+      const res = await request(app).post('/api/v1/payments/sslcommerz/success').type('form').send({
+        val_id: 'val-timeout-123',
+        tran_id: payment.transactionId,
+      });
+
+      expect(res.status).toBe(302);
+      expect(res.header.location).toContain('status=PENDING');
+      expect(res.header.location).not.toContain(payment.transactionId);
+      expect(res.header.location).not.toContain('orderNumber=');
+      expect(res.header.location).not.toContain('reason=');
+
+      const dbOrder = await prisma.order.findUniqueOrThrow({ where: { id: order.id } });
+      expect(dbOrder.status).toBe('PENDING');
+      expect(dbOrder.paymentStatus).toBe('PENDING');
+    });
+
+    it('never exposes TXN ID or error reason in redirect URL on missing/invalid callbacks', async () => {
+      const fakeTxn = 'TXN-20261126-FAKE9999';
+
+      const failRes = await request(app).post('/api/v1/payments/sslcommerz/fail').type('form').send({
+        tran_id: fakeTxn,
+      });
+      expect(failRes.status).toBe(302);
+      expect(failRes.header.location).toContain('status=FAILED');
+      expect(failRes.header.location).not.toContain(fakeTxn);
+      expect(failRes.header.location).not.toContain('orderNumber=');
+      expect(failRes.header.location).not.toContain('reason=');
+
+      const cancelRes = await request(app)
+        .post('/api/v1/payments/sslcommerz/cancel')
+        .type('form')
+        .send({
+          tran_id: fakeTxn,
+        });
+      expect(cancelRes.status).toBe(302);
+      expect(cancelRes.header.location).toContain('status=CANCELLED');
+      expect(cancelRes.header.location).not.toContain(fakeTxn);
+      expect(cancelRes.header.location).not.toContain('orderNumber=');
+      expect(cancelRes.header.location).not.toContain('reason=');
+    });
   });
 });

@@ -97,6 +97,13 @@ export class OrderService {
         );
       }
 
+      if (input.paymentMethod === 'SSLCOMMERZ' && !validation.address.postalCode?.trim()) {
+        throw new BadRequestError(
+          'POSTAL_CODE_REQUIRED',
+          'A valid postal code on your delivery address is required for online payment.',
+        );
+      }
+
       if (validation.items.length === 0) {
         throw new BadRequestError('EMPTY_CART', 'Your shopping cart is empty.');
       }
