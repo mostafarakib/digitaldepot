@@ -83,7 +83,7 @@ export function PaymentMethodSelector({
                 variant="outline"
                 className="text-[10px] bg-primary/10 text-primary border-primary/20 font-semibold py-0"
               >
-                Default
+                {t('defaultBadge')}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">{t('codDescription')}</p>
@@ -178,11 +178,9 @@ export function PaymentMethodSelector({
 
       {/* Trust Notice */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground pt-1">
-        <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
+        <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
         <span>
-          {selectedMethod === 'COD'
-            ? 'Cash on Delivery — inspect your package before paying'
-            : 'SSLCommerz Sandbox — 128-bit SSL encrypted online payment'}
+          {selectedMethod === 'COD' ? t('codTrustNotice') : t('onlineTrustNotice')}
         </span>
       </div>
     </div>

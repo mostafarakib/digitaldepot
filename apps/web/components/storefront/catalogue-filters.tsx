@@ -218,8 +218,8 @@ export function CatalogueFilters({
           {t('filters.priceRange')}
         </h4>
         <form onSubmit={handleApplyPrice} className="space-y-2">
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
+          <div className="flex flex-row md:flex-col xl:flex-row items-stretch md:items-stretch xl:items-center gap-2">
+            <div className="relative flex-1 min-w-0">
               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                 ৳
               </span>
@@ -228,12 +228,12 @@ export function CatalogueFilters({
                 placeholder={t('filters.minPrice')}
                 value={minPriceInput}
                 onChange={(e) => setMinPriceInput(e.target.value)}
-                className="h-8 pl-6 text-xs"
+                className="h-8 pl-6 pr-2 text-xs"
                 min={0}
               />
             </div>
-            <span className="text-xs text-muted-foreground">–</span>
-            <div className="relative flex-1">
+            <span className="text-xs text-muted-foreground self-center md:hidden xl:inline">–</span>
+            <div className="relative flex-1 min-w-0">
               <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                 ৳
               </span>
@@ -242,7 +242,7 @@ export function CatalogueFilters({
                 placeholder={t('filters.maxPrice')}
                 value={maxPriceInput}
                 onChange={(e) => setMaxPriceInput(e.target.value)}
-                className="h-8 pl-6 text-xs"
+                className="h-8 pl-6 pr-2 text-xs"
                 min={0}
               />
             </div>

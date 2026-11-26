@@ -94,7 +94,6 @@ export default async function StatusPage() {
                   {isHealthy ? t('ok') : t('degraded')}
                 </Badge>
               </CardTitle>
-              <span className="text-xs text-muted-foreground">{t('phase1Verified')}</span>
             </div>
           </CardHeader>
 

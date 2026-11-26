@@ -313,7 +313,7 @@ export function OrderHistoryView() {
                     </div>
 
                     {/* Financial Total & CTA */}
-                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-3 sm:pt-0 border-border/60 shrink-0">
+                    <div className="flex flex-wrap sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-3 border-t sm:border-t-0 pt-3 sm:pt-0 border-border/60 shrink-0">
                       <div>
                         <p className="text-[10px] text-muted-foreground sm:text-right uppercase tracking-wider">
                           {t('total')}
@@ -323,7 +323,7 @@ export function OrderHistoryView() {
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex flex-wrap items-center gap-2 sm:mt-1">
                         {isCancellable && (
                           <Button
                             type="button"

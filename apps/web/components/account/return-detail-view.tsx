@@ -212,9 +212,9 @@ export function ReturnDetailView({ returnNumber }: ReturnDetailViewProps) {
 
       {/* Title Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground break-all">
               {t('details.pageSubtitle', { returnNumber: returnDetail.returnNumber })}
             </h1>
             {getStatusBadge(returnDetail.status)}

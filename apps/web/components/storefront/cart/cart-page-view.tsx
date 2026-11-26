@@ -132,20 +132,20 @@ export function CartPageView() {
             const isExceedingStock = !isOutOfStock && !item.isQuantityValid;
 
             return (
-              <div key={item.id} className="p-4 sm:p-6 flex flex-col sm:flex-row gap-4 sm:gap-6">
+              <div key={item.id} className="p-3.5 sm:p-6 flex flex-row gap-3.5 sm:gap-6">
                 {/* Thumbnail */}
-                <div className="relative size-24 sm:size-28 rounded-lg bg-muted border border-border overflow-hidden shrink-0 mx-auto sm:mx-0">
+                <div className="relative size-20 sm:size-28 rounded-lg bg-slate-50 dark:bg-slate-900/50 border border-border overflow-hidden shrink-0">
                   {primaryImage?.url ? (
                     <Image
                       src={primaryImage.url}
                       alt={primaryImage.altText || item.product.name}
                       fill
-                      sizes="112px"
-                      className="object-cover"
+                      sizes="(max-width: 640px) 80px, 112px"
+                      className="object-contain p-1.5"
                     />
                   ) : (
                     <div className="size-full flex items-center justify-center text-muted-foreground">
-                      <ShoppingCart className="size-8 opacity-30" />
+                      <ShoppingCart className="size-7 sm:size-8 opacity-30" />
                     </div>
                   )}
                 </div>

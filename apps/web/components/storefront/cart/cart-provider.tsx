@@ -14,6 +14,10 @@ import {
   clearShippingEstimateApi,
 } from '@/lib/api-client';
 
+interface AddToCartOptions {
+  openDrawer?: boolean;
+}
+
 interface CartContextValue {
   cart: CartData | null;
   isLoading: boolean;
@@ -21,7 +25,7 @@ interface CartContextValue {
   setIsDrawerOpen: (open: boolean) => void;
   openDrawer: () => void;
   closeDrawer: () => void;
-  addToCart: (variantId: string, quantity?: number) => Promise<void>;
+  addToCart: (variantId: string, quantity?: number, options?: AddToCartOptions) => Promise<void>;
   updateQuantity: (itemId: string, quantity: number) => Promise<void>;
   removeItem: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -78,11 +82,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const openDrawer = useCallback(() => setIsDrawerOpen(true), []);
   const closeDrawer = useCallback(() => setIsDrawerOpen(false), []);
 
-  const addToCart = useCallback(async (variantId: string, quantity = 1) => {
-    const updated = await addToCartApi({ variantId, quantity });
-    setCart(updated);
-    setIsDrawerOpen(true);
-  }, []);
+  const addToCart = useCallback(
+    async (variantId: string, quantity = 1, options: AddToCartOptions = {}) => {
+      const updated = await addToCartApi({ variantId, quantity });
+      setCart(updated);
+      if (options.openDrawer !== false) {
+        setIsDrawerOpen(true);
+      }
+    },
+    [],
+  );
 
   const updateQuantity = useCallback(async (itemId: string, quantity: number) => {
     if (quantity <= 0) {

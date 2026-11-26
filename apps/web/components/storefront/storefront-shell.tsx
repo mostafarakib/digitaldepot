@@ -10,21 +10,34 @@ import { StorefrontVerificationBanner } from '@/components/auth/storefront-verif
 import { CartProvider } from '@/components/storefront/cart/cart-provider';
 import { CartDrawer } from '@/components/storefront/cart/cart-drawer';
 import { WishlistProvider } from '@/components/storefront/wishlist/wishlist-provider';
+import type { CategoryTreeNode } from '@/lib/catalogue-types';
+import type { PublicStoreSettings } from '@/lib/settings-types';
 
-export function StorefrontShell({ children }: { children: React.ReactNode }) {
+interface StorefrontShellProps {
+  children: React.ReactNode;
+  categories?: CategoryTreeNode[];
+  settings?: PublicStoreSettings | null;
+}
+
+export function StorefrontShell({
+  children,
+  categories = [],
+  settings = null,
+}: StorefrontShellProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <CartProvider>
       <WishlistProvider>
         <div className="min-h-screen flex flex-col bg-background text-foreground antialiased">
-          <TopBar />
+          <TopBar settings={settings} />
           <MainHeader onOpenMobileMenu={() => setMobileMenuOpen(true)} />
-          <CategoryNav />
+          <CategoryNav categories={categories} />
           <StorefrontVerificationBanner />
           <main className="flex-1">{children}</main>
-          <StorefrontFooter />
+          <StorefrontFooter categories={categories} settings={settings} />
           <MobileNav
+            categories={categories}
             isOpen={mobileMenuOpen}
             onClose={() => setMobileMenuOpen(false)}
             onOpen={() => setMobileMenuOpen(true)}

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { useWishlist } from '@/components/storefront/wishlist/wishlist-provider';
 import { useCart } from '@/components/storefront/cart/cart-provider';
@@ -23,6 +23,7 @@ export function WishlistView() {
   const t = useTranslations('wishlist');
   const tCommon = useTranslations('common');
   const tCat = useTranslations('catalogue');
+  const locale = useLocale();
   const { wishlistItems, removeFromWishlist, isLoading } = useWishlist();
   const { addToCart } = useCart();
 
@@ -100,7 +101,7 @@ export function WishlistView() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5 mt-6 sm:mt-8">
           {wishlistItems.map((item) => {
             const product = item.product;
             const isBusy = busyProductId === product.id;
@@ -108,40 +109,40 @@ export function WishlistView() {
             return (
               <div
                 key={item.id}
-                className="group relative flex flex-col bg-card border border-border rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all duration-200"
+                className="group relative flex flex-col bg-card border border-border rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all duration-200 min-w-0"
               >
                 {/* Product Image Area */}
                 <Link
                   href={`/products/${product.slug}`}
-                  className="relative aspect-square w-full bg-muted/30 overflow-hidden flex items-center justify-center"
+                  className="relative aspect-square w-full bg-slate-50 dark:bg-slate-900/50 border-b border-border/60 overflow-hidden flex items-center justify-center"
                 >
                   {product.primaryImage ? (
                     <Image
                       src={product.primaryImage.url}
                       alt={product.primaryImage.altText || product.name}
                       fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                      className="object-contain p-4 group-hover:scale-105 transition-transform duration-300"
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                      className="object-contain p-2.5 sm:p-4 group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (
-                    <Package className="size-16 text-muted-foreground/40 stroke-[1.5]" />
+                    <Package className="size-12 sm:size-16 text-muted-foreground/40 stroke-[1.5]" />
                   )}
 
                   {/* Stock Status Badge */}
-                  <div className="absolute top-2.5 right-2.5 z-10">
+                  <div className="absolute top-2 right-2 z-10">
                     {!product.isInStock ? (
-                      <span className="inline-flex items-center text-[10px] font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full">
+                      <span className="inline-flex items-center text-[9px] sm:text-[10px] font-medium bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/25 px-1.5 sm:px-2 py-0.5 rounded-full">
                         {tCat('listing.outOfStock')}
                       </span>
                     ) : (
-                      <span className="inline-flex items-center text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                      <span className="inline-flex items-center text-[9px] sm:text-[10px] font-medium bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 px-1.5 sm:px-2 py-0.5 rounded-full">
                         {tCat('listing.inStock')}
                       </span>
                     )}
                   </div>
 
                   {product.featured && (
-                    <div className="absolute top-2.5 left-2.5 z-10">
+                    <div className="hidden sm:block absolute top-2 left-2 z-10">
                       <Badge variant="default" className="text-[10px] uppercase font-semibold">
                         {tCat('listing.featuredBadge')}
                       </Badge>
@@ -150,17 +151,17 @@ export function WishlistView() {
                 </Link>
 
                 {/* Details */}
-                <div className="flex flex-col flex-1 p-4">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                <div className="flex flex-col flex-1 p-2.5 sm:p-4 min-w-0">
+                  <div className="flex items-center justify-between gap-1.5 text-[10px] sm:text-xs text-muted-foreground mb-1">
                     <span className="truncate">{product.category.name}</span>
                     {product.brand && (
-                      <span className="font-medium truncate">{product.brand.name}</span>
+                      <span className="font-medium truncate shrink-0">{product.brand.name}</span>
                     )}
                   </div>
 
                   <Link
                     href={`/products/${product.slug}`}
-                    className="font-medium text-sm text-foreground line-clamp-2 hover:text-primary transition-colors mb-2"
+                    className="font-semibold text-xs sm:text-sm text-foreground line-clamp-2 min-h-[2rem] sm:min-h-[2.5rem] hover:text-primary transition-colors mb-2"
                     title={product.name}
                   >
                     {product.name}
@@ -168,25 +169,25 @@ export function WishlistView() {
 
                   {/* Price */}
                   <div className="mt-auto pt-2 border-t border-border/50">
-                    <div className="flex items-baseline gap-1.5 mb-3">
-                      <span className="text-base font-bold text-foreground">
+                    <div className="flex items-baseline gap-1.5 flex-wrap mb-2.5">
+                      <span className="text-sm sm:text-base font-bold text-foreground">
                         {product.minPrice === product.maxPrice
-                          ? formatPoishaToBDT(product.minPrice)
-                          : `${formatPoishaToBDT(product.minPrice)} – ${formatPoishaToBDT(product.maxPrice)}`}
+                          ? formatPoishaToBDT(product.minPrice, locale)
+                          : `${formatPoishaToBDT(product.minPrice, locale)} – ${formatPoishaToBDT(product.maxPrice, locale)}`}
                       </span>
                       {product.compareAtPrice && product.compareAtPrice > product.minPrice && (
-                        <span className="text-xs text-muted-foreground line-through">
-                          {formatPoishaToBDT(product.compareAtPrice)}
+                        <span className="text-[11px] sm:text-xs text-muted-foreground line-through">
+                          {formatPoishaToBDT(product.compareAtPrice, locale)}
                         </span>
                       )}
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                       {product.variantCount > 1 ? (
-                        <Button asChild size="sm" className="flex-1 text-xs">
-                          <Link href={`/products/${product.slug}`}>
-                            {tCat('detail.selectVariant')}
+                        <Button asChild size="sm" className="flex-1 h-9 sm:h-8 px-2 text-xs min-w-0">
+                          <Link href={`/products/${product.slug}`} className="truncate">
+                            {tCat('listing.viewOptions')}
                           </Link>
                         </Button>
                       ) : (
@@ -195,14 +196,14 @@ export function WishlistView() {
                           size="sm"
                           disabled={!product.isInStock || isBusy}
                           onClick={() => void handleAddToCart(product.id, product.defaultVariantId)}
-                          className="flex-1 text-xs flex items-center justify-center gap-1.5"
+                          className="flex-1 h-9 sm:h-8 px-2 text-xs flex items-center justify-center gap-1 min-w-0"
                         >
                           {isBusy ? (
-                            <Loader2 className="size-3.5 animate-spin" />
+                            <Loader2 className="size-3.5 animate-spin shrink-0" />
                           ) : (
-                            <ShoppingCart className="size-3.5" />
+                            <ShoppingCart className="size-3.5 shrink-0" />
                           )}
-                          <span>{t('moveToCart')}</span>
+                          <span className="truncate">{t('moveToCart')}</span>
                         </Button>
                       )}
 
@@ -214,7 +215,7 @@ export function WishlistView() {
                         onClick={() => void handleRemove(product.id)}
                         title={t('removeFromWishlist')}
                         aria-label={t('removeFromWishlist')}
-                        className="size-8 p-0 text-muted-foreground hover:text-destructive shrink-0"
+                        className="size-9 sm:size-8 p-0 text-muted-foreground hover:text-destructive shrink-0"
                       >
                         <Trash2 className="size-4" />
                       </Button>

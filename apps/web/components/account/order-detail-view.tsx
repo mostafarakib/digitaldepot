@@ -224,7 +224,7 @@ export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
           </Link>
         </Button>
 
-        <div className="flex items-center gap-2 self-start">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
           {order.canCancel && (
             <Button
               type="button"
@@ -243,11 +243,11 @@ export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
               variant="outline"
               size="sm"
               onClick={() => setIsReturnModalOpen(true)}
-              className="text-xs gap-1.5 border-primary/40 text-primary hover:bg-primary/5"
+              className="text-xs gap-1.5 h-auto py-1.5 flex-wrap border-primary/40 text-primary hover:bg-primary/5"
             >
-              <RotateCcw className="size-3.5" />
+              <RotateCcw className="size-3.5 shrink-0" />
               <span>{tReturns('requestReturn')}</span>
-              <span className="ml-1 text-[10px] bg-primary/10 px-1.5 py-0.5 rounded-full font-medium">
+              <span className="text-[10px] bg-primary/10 px-1.5 py-0.5 rounded-full font-medium">
                 {tReturns('returnWindowNotice', { days: returnEligibility.daysRemaining })}
               </span>
             </Button>
@@ -257,9 +257,9 @@ export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
 
       {/* Order Title Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground break-all">
               {order.orderNumber}
             </h1>
             {getStatusBadge(order.status)}
@@ -496,9 +496,11 @@ export function OrderDetailView({ orderNumber }: OrderDetailViewProps) {
                 </span>
               </div>
               {order.payments && order.payments[0] && (
-                <div className="flex items-center justify-between border-t border-border/50 pt-2">
-                  <span className="text-muted-foreground">{t('details.transactionIdLabel')}:</span>
-                  <span className="font-mono text-[11px] text-foreground">
+                <div className="flex items-start justify-between gap-3 border-t border-border/50 pt-2">
+                  <span className="text-muted-foreground shrink-0">
+                    {t('details.transactionIdLabel')}:
+                  </span>
+                  <span className="font-mono text-[11px] text-foreground break-all text-right">
                     {order.payments[0].transactionId}
                   </span>
                 </div>

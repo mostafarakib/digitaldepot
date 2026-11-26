@@ -2,14 +2,15 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { formatPoishaToBDT } from '@/lib/utils';
 import { useCart } from '@/components/storefront/cart/cart-provider';
 import { useWishlist } from '@/components/storefront/wishlist/wishlist-provider';
 import type { StorefrontProductSummary } from '@/lib/catalogue-types';
-import { Package, ShieldCheck, ShoppingCart, Heart } from 'lucide-react';
+import { Package, ShoppingCart, Heart, Loader2, ArrowRight } from 'lucide-react';
 
 interface ProductCardProps {
   product: StorefrontProductSummary;
@@ -18,6 +19,7 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const t = useTranslations('catalogue');
   const tWishlist = useTranslations('wishlist');
+  const locale = useLocale();
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const [isAdding, setIsAdding] = React.useState(false);
@@ -30,9 +32,9 @@ export function ProductCard({ product }: ProductCardProps) {
       : null;
 
   return (
-    <div className="group relative flex flex-col bg-card border border-border rounded-xl overflow-hidden shadow-xs hover:shadow-md transition-all duration-200">
-      {/* Product Image Area */}
-      <div className="relative aspect-square w-full bg-muted/30 overflow-hidden flex items-center justify-center">
+    <article className="group relative flex flex-col bg-card border border-border rounded-xl overflow-hidden shadow-xs hover:shadow-md hover:border-primary/30 transition-all duration-200 min-w-0">
+      {/* Product Image Stage */}
+      <div className="relative aspect-square w-full bg-slate-50 dark:bg-slate-900/50 border-b border-border/60 overflow-hidden flex items-center justify-center">
         <Link
           href={`/products/${product.slug}`}
           aria-label={product.name}
@@ -43,41 +45,44 @@ export function ProductCard({ product }: ProductCardProps) {
               src={product.primaryImage.url}
               alt={product.primaryImage.altText || product.name}
               fill
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-              className="object-contain p-4 group-hover:scale-105 transition-transform duration-300"
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-contain p-2.5 sm:p-4 group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
-            <Package className="size-16 text-muted-foreground/40 stroke-[1.5]" />
+            <Package className="size-12 sm:size-14 text-muted-foreground/40 stroke-[1.5]" />
           )}
         </Link>
 
         {/* Badges Overlay */}
-        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10 pointer-events-none">
+        <div className="absolute top-2 left-2 right-10 flex flex-col items-start gap-1 z-10 pointer-events-none">
+          {discountPercent !== null && discountPercent > 0 && (
+            <Badge
+              variant="destructive"
+              className="text-[9px] sm:text-[10px] font-semibold px-1.5 sm:px-2 py-0.5 leading-tight"
+            >
+              -{discountPercent}%
+            </Badge>
+          )}
           {product.featured && (
             <Badge
               variant="default"
-              className="text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5"
+              className="hidden sm:inline-flex text-[10px] font-semibold tracking-wide uppercase px-2 py-0.5"
             >
               {t('listing.featuredBadge')}
             </Badge>
           )}
-          {discountPercent !== null && discountPercent > 0 && (
-            <Badge variant="destructive" className="text-[10px] font-semibold px-2 py-0.5">
-              -{discountPercent}%
-            </Badge>
-          )}
           {!product.isInStock ? (
-            <span className="inline-flex items-center text-[10px] font-medium bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded-full">
+            <span className="inline-flex items-center max-w-full truncate text-[9px] sm:text-[10px] font-semibold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/25 px-1.5 sm:px-2 py-0.5 rounded-full backdrop-blur-xs">
               {t('listing.outOfStock')}
             </span>
           ) : product.totalAvailableStock <= 5 ? (
-            <span className="inline-flex items-center text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full">
+            <span className="inline-flex items-center max-w-full truncate text-[9px] sm:text-[10px] font-semibold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/25 px-1.5 sm:px-2 py-0.5 rounded-full backdrop-blur-xs">
               {t('listing.onlyXLeft', { count: product.totalAvailableStock })}
             </span>
           ) : null}
         </div>
 
-        {/* Wishlist Button Overlay */}
+        {/* Wishlist Action */}
         <button
           type="button"
           onClick={(e) => {
@@ -87,7 +92,7 @@ export function ProductCard({ product }: ProductCardProps) {
           }}
           title={isWishlisted ? tWishlist('removeFromWishlist') : tWishlist('addToWishlist')}
           aria-label={isWishlisted ? tWishlist('removeFromWishlist') : tWishlist('addToWishlist')}
-          className="absolute top-2.5 right-2.5 z-20 size-9 rounded-full bg-background/80 backdrop-blur-xs flex items-center justify-center hover:bg-background transition-colors shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
+          className="absolute top-2 right-2 z-20 size-8 rounded-full bg-background/90 border border-border/80 flex items-center justify-center hover:bg-background transition-colors shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary cursor-pointer"
         >
           <Heart
             className={`size-4 transition-colors ${
@@ -99,56 +104,57 @@ export function ProductCard({ product }: ProductCardProps) {
         </button>
       </div>
 
-      {/* Product Content */}
-      <div className="flex flex-col flex-1 p-4">
-        {/* Category & Brand Metadata */}
-        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground mb-1">
+      {/* Product Info */}
+      <div className="flex flex-col flex-1 p-2.5 sm:p-4 min-w-0">
+        <div className="flex items-center justify-between gap-1.5 text-[10px] sm:text-[11px] text-muted-foreground mb-1">
           <span className="truncate">{product.category.name}</span>
           {product.brand && (
-            <span className="font-medium text-foreground/80 truncate">{product.brand.name}</span>
+            <span className="font-semibold text-foreground/80 truncate shrink-0">
+              {product.brand.name}
+            </span>
           )}
         </div>
 
-        {/* Title */}
         <Link
           href={`/products/${product.slug}`}
-          className="font-medium text-sm text-foreground line-clamp-2 hover:text-primary transition-colors mb-2"
+          className="font-semibold text-xs sm:text-sm text-foreground line-clamp-2 min-h-[2rem] sm:min-h-[2.5rem] leading-snug hover:text-primary transition-colors mb-1.5"
           title={product.name}
         >
           {product.name}
         </Link>
 
-        {/* Summary text if available */}
         {product.summary && (
-          <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{product.summary}</p>
+          <p className="hidden sm:line-clamp-2 text-xs text-muted-foreground mb-3">
+            {product.summary}
+          </p>
         )}
 
-        <div className="mt-auto pt-2 border-t border-border/50 flex items-end justify-between gap-2">
-          {/* Pricing */}
-          <div>
+        {/* Pricing & Action */}
+        <div className="mt-auto pt-2.5 sm:pt-3 border-t border-border/60 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+          <div className="min-w-0">
             <div className="flex items-baseline gap-1.5 flex-wrap">
-              <span className="text-base sm:text-lg font-bold text-foreground">
+              <span className="text-sm sm:text-base font-bold text-foreground leading-tight">
                 {product.minPrice === product.maxPrice
-                  ? formatPoishaToBDT(product.minPrice)
-                  : `${formatPoishaToBDT(product.minPrice)} – ${formatPoishaToBDT(product.maxPrice)}`}
+                  ? formatPoishaToBDT(product.minPrice, locale)
+                  : `${formatPoishaToBDT(product.minPrice, locale)} – ${formatPoishaToBDT(product.maxPrice, locale)}`}
               </span>
               {product.compareAtPrice && product.compareAtPrice > product.minPrice && (
-                <span className="text-xs text-muted-foreground line-through">
-                  {formatPoishaToBDT(product.compareAtPrice)}
+                <span className="text-[11px] sm:text-xs text-muted-foreground line-through">
+                  {formatPoishaToBDT(product.compareAtPrice, locale)}
                 </span>
               )}
             </div>
             {product.variantCount > 1 && (
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-[10px] sm:text-[11px] text-muted-foreground block mt-0.5 truncate">
                 {t('listing.variantsAvailable', { count: product.variantCount })}
               </span>
             )}
           </div>
 
-          {/* Quick Add / View Options */}
           {product.variantCount === 1 && product.defaultVariantId && product.isInStock ? (
-            <button
+            <Button
               type="button"
+              size="sm"
               onClick={async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -156,39 +162,48 @@ export function ProductCard({ product }: ProductCardProps) {
                 setIsAdding(true);
                 try {
                   await addToCart(product.defaultVariantId!, 1);
+                } catch {
+                  // Cart provider / network errors leave UI stable
                 } finally {
                   setIsAdding(false);
                 }
               }}
               disabled={isAdding}
-              title={t('detail.addToCart')}
               aria-label={t('detail.addToCart')}
-              className="size-9 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground flex items-center justify-center transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="w-full sm:w-auto h-9 sm:h-8 px-2.5 sm:px-3 text-xs font-semibold shrink-0"
             >
-              <ShoppingCart className="size-4" />
-            </button>
+              {isAdding ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <ShoppingCart className="size-3.5" />
+              )}
+              <span>{t('listing.addShort')}</span>
+            </Button>
           ) : product.isInStock ? (
-            <Link
-              href={`/products/${product.slug}`}
-              title={t('listing.viewOptions')}
-              aria-label={t('listing.viewOptions')}
-              className="size-9 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground flex items-center justify-center transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            <Button
+              asChild
+              size="sm"
+              variant="secondary"
+              className="w-full sm:w-auto h-9 sm:h-8 px-2.5 sm:px-3 text-xs font-semibold shrink-0"
             >
-              <ShoppingCart className="size-4" />
-            </Link>
+              <Link href={`/products/${product.slug}`}>
+                <span>{t('listing.viewOptions')}</span>
+                <ArrowRight className="size-3" />
+              </Link>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="outline"
               disabled
-              title={t('listing.outOfStock')}
-              aria-label={t('listing.outOfStock')}
-              className="size-9 rounded-lg bg-muted text-muted-foreground flex items-center justify-center opacity-50 cursor-not-allowed"
+              className="w-full sm:w-auto h-9 sm:h-8 px-2.5 text-xs shrink-0 opacity-60"
             >
-              <ShoppingCart className="size-4" />
-            </button>
+              {t('listing.outOfStock')}
+            </Button>
           )}
         </div>
       </div>
-    </div>
+    </article>
   );
 }

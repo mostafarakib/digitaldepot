@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { Link, useRouter } from '@/i18n/routing';
 import { Logo } from '@/components/common/logo';
-import { Search, Heart, ShoppingCart, SlidersHorizontal } from 'lucide-react';
+import { Search, Heart, ShoppingCart, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { UserMenu } from '@/components/auth/user-menu';
 import { NotificationBell } from '@/components/notifications/notification-bell';
@@ -39,26 +39,26 @@ export function MainHeader({ onOpenMobileMenu }: MainHeaderProps) {
     locale === 'bn' ? toBengaliDigits(cart?.totalQuantity ?? 0) : String(cart?.totalQuantity ?? 0);
 
   return (
-    <div className="w-full bg-background border-b border-border sticky top-0 z-40 backdrop-blur-md bg-background/95">
-      <div className="container mx-auto px-4 py-3 flex items-center justify-between gap-4">
-        {/* Brand */}
-        <div className="flex items-center gap-3">
+    <header className="w-full border-b border-border sticky top-0 z-40 backdrop-blur-md bg-background/95">
+      <div className="container mx-auto px-3 sm:px-4 py-2.5 sm:py-3 flex items-center justify-between gap-2 sm:gap-4">
+        {/* Mobile Menu Trigger & Brand Logo */}
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 min-w-0">
           <Button
             variant="ghost"
             size="icon"
             onClick={onOpenMobileMenu}
-            className="md:hidden"
-            aria-label="Open mobile menu"
+            className="md:hidden size-8 sm:size-9"
+            aria-label="Open category menu"
           >
-            <SlidersHorizontal className="size-5" />
+            <Menu className="size-5" />
           </Button>
           <Logo />
         </div>
 
-        {/* Search Bar */}
-        <div className="hidden md:flex flex-1 max-w-xl mx-4">
+        {/* Desktop Search Bar */}
+        <div className="hidden md:flex flex-1 max-w-2xl mx-2 lg:mx-6">
           <form onSubmit={handleSearchSubmit} className="relative w-full flex items-center">
-            <div className="absolute left-3 text-muted-foreground pointer-events-none">
+            <div className="absolute left-3.5 text-muted-foreground pointer-events-none">
               <Search className="size-4" />
             </div>
             <input
@@ -69,28 +69,35 @@ export function MainHeader({ onOpenMobileMenu }: MainHeaderProps) {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('search')}
               aria-label={t('search')}
-              className="w-full h-10 pl-9 pr-24 rounded-lg border border-input bg-muted/40 hover:bg-muted/70 focus:bg-background text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-text"
+              className="w-full h-10 pl-10 pr-28 rounded-lg border border-input bg-muted/40 hover:bg-muted/60 focus:bg-background text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
-            <div className="absolute right-2 flex items-center gap-1.5">
-              <Button type="submit" size="sm" className="h-7 px-3 text-xs">
-                {t('search')}
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label={t('close')}
+                className="absolute right-20 p-1 text-muted-foreground hover:text-foreground rounded cursor-pointer"
+              >
+                <X className="size-3.5" />
+              </button>
+            )}
+            <div className="absolute right-1.5 flex items-center">
+              <Button type="submit" size="sm" className="h-7 px-3.5 text-xs font-semibold">
+                {t('searchButton')}
               </Button>
             </div>
           </form>
         </div>
 
-        {/* User Entry Points */}
-        <div className="flex items-center gap-1 sm:gap-2">
-          {/* Account */}
+        {/* Customer Actions */}
+        <div className="flex items-center gap-0.5 sm:gap-2 shrink-0">
           <UserMenu />
-
-          {/* In-App Notifications */}
           <NotificationBell />
 
           {/* Wishlist */}
           <Link
             href="/wishlist"
-            className="relative size-9 rounded-lg hover:bg-muted/50 flex items-center justify-center cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="relative size-8 sm:size-9 rounded-lg hover:bg-muted/60 flex items-center justify-center cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             title={t('wishlist')}
             aria-label={
               wishlistCount > 0
@@ -100,7 +107,7 @@ export function MainHeader({ onOpenMobileMenu }: MainHeaderProps) {
           >
             <Heart className="size-5 text-muted-foreground" />
             {wishlistCount > 0 && (
-              <span className="absolute top-1 right-1 size-4 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center">
+              <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center">
                 {wishlistCount > 99 ? (locale === 'bn' ? '৯৯+' : '99+') : formattedWishlistCount}
               </span>
             )}
@@ -110,7 +117,7 @@ export function MainHeader({ onOpenMobileMenu }: MainHeaderProps) {
           <button
             type="button"
             onClick={openDrawer}
-            className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            className="flex items-center gap-2 p-1 sm:px-2 sm:py-1.5 rounded-lg hover:bg-muted/60 cursor-pointer transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             title={t('cart')}
             aria-haspopup="dialog"
             aria-label={
@@ -119,10 +126,10 @@ export function MainHeader({ onOpenMobileMenu }: MainHeaderProps) {
                 : t('cart')
             }
           >
-            <div className="relative size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+            <div className="relative size-8 sm:size-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
               <ShoppingCart className="size-5" />
               {(cart?.totalQuantity ?? 0) > 0 && (
-                <span className="absolute -top-1 -right-1 size-4 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-primary text-[10px] font-bold text-primary-foreground flex items-center justify-center">
                   {(cart?.totalQuantity ?? 0) > 99
                     ? locale === 'bn'
                       ? '৯৯+'
@@ -153,15 +160,15 @@ export function MainHeader({ onOpenMobileMenu }: MainHeaderProps) {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t('search')}
             aria-label={t('search')}
-            className="w-full h-9 pl-9 pr-16 rounded-lg border border-input bg-muted/40 text-xs focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full h-9 pl-9 pr-20 rounded-lg border border-input bg-muted/40 text-xs focus:bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
           />
-          <div className="absolute right-1.5">
-            <Button type="submit" size="sm" className="h-6 px-2.5 text-[11px]">
-              {t('search')}
+          <div className="absolute right-1">
+            <Button type="submit" size="sm" className="h-7 px-3 text-[11px] font-semibold">
+              {t('searchButton')}
             </Button>
           </div>
         </form>
       </div>
-    </div>
+    </header>
   );
 }

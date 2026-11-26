@@ -1,38 +1,38 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { Link } from '@/i18n/routing';
 import { useModalA11y } from '@/hooks/use-modal-a11y';
+import { getCategoryIcon } from '@/components/storefront/category-icons';
+import { toBengaliDigits } from '@/lib/utils';
+import type { CategoryTreeNode } from '@/lib/catalogue-types';
 import {
   Home,
-  Grid,
+  LayoutGrid,
   Heart,
   ShoppingCart,
   User,
   X,
-  Smartphone,
-  Laptop,
-  Cpu,
-  Monitor,
-  Headphones,
-  Watch,
-  Keyboard,
-  ShieldCheck,
+  Package,
+  Sparkles,
+  Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWishlist } from '@/components/storefront/wishlist/wishlist-provider';
 import { useCart } from '@/components/storefront/cart/cart-provider';
 
 interface MobileNavProps {
+  categories?: CategoryTreeNode[];
   isOpen: boolean;
   onClose: () => void;
   onOpen?: () => void;
 }
 
-export function MobileNav({ isOpen, onClose, onOpen }: MobileNavProps) {
+export function MobileNav({ categories = [], isOpen, onClose, onOpen }: MobileNavProps) {
   const tCommon = useTranslations('common');
   const tNav = useTranslations('nav');
+  const locale = useLocale();
   const { itemCount: wishlistCount } = useWishlist();
   const { cart, openDrawer } = useCart();
   const cartCount = cart?.totalQuantity ?? 0;
@@ -44,84 +44,105 @@ export function MobileNav({ isOpen, onClose, onOpen }: MobileNavProps) {
     containerRef: drawerRef,
   });
 
-  const categories = [
-    { id: 'smartphones', label: tNav('smartphones'), icon: Smartphone },
-    { id: 'laptops', label: tNav('laptops'), icon: Laptop },
-    { id: 'components', label: tNav('components'), icon: Cpu },
-    { id: 'monitors', label: tNav('monitors'), icon: Monitor },
-    { id: 'audio', label: tNav('audio'), icon: Headphones },
-    { id: 'wearables', label: tNav('wearables'), icon: Watch },
-    { id: 'accessories', label: tNav('accessories'), icon: Keyboard },
+  const fallbackCategories = [
+    { slug: 'smartphones', name: tNav('smartphones') },
+    { slug: 'laptops', name: tNav('laptops') },
+    { slug: 'headphones', name: tNav('headphones') },
+    { slug: 'earbuds-audio', name: tNav('earbudsAudio') },
+    { slug: 'smartwatches', name: tNav('smartwatches') },
+    { slug: 'keyboards', name: tNav('keyboards') },
+    { slug: 'mice', name: tNav('mice') },
+    { slug: 'monitors', name: tNav('monitors') },
+    { slug: 'accessories', name: tNav('accessories') },
   ];
+
+  const activeCategories =
+    categories.length > 0
+      ? categories
+          .filter((cat) => cat.isActive)
+          .map((cat) => ({ slug: cat.slug, name: cat.name }))
+      : fallbackCategories;
+
+  const formatBadge = (count: number) => {
+    if (count > 99) return locale === 'bn' ? '৯৯+' : '99+';
+    return locale === 'bn' ? toBengaliDigits(count) : String(count);
+  };
 
   return (
     <>
-      {/* Mobile Bottom Bar (Thumb friendly) */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-t border-border flex items-center justify-around h-16 px-2 shadow-lg">
+      {/* Mobile Bottom Navigation Bar */}
+      <nav
+        aria-label="Mobile navigation"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-md border-t border-border flex items-center justify-around h-16 px-1 shadow-lg"
+      >
         <Link
           href="/"
-          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1"
+          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 min-w-0"
         >
-          <Home className="size-5" />
-          <span>{tNav('home')}</span>
+          <Home className="size-5 shrink-0" />
+          <span className="truncate max-w-full px-0.5 leading-tight">{tNav('home')}</span>
         </Link>
 
         <button
           type="button"
           onClick={onOpen || onClose}
-          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 cursor-pointer"
+          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 min-w-0 cursor-pointer"
           aria-label={tNav('allCategories')}
         >
-          <Grid className="size-5" />
-          <span>{tNav('allCategories')}</span>
+          <LayoutGrid className="size-5 shrink-0" />
+          <span className="truncate max-w-full px-0.5 leading-tight">{tNav('allCategories')}</span>
         </button>
 
         <Link
           href="/wishlist"
-          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 relative cursor-pointer"
+          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 min-w-0 cursor-pointer"
         >
-          <Heart className="size-5" />
-          {wishlistCount > 0 && (
-            <span className="absolute top-1 right-5 size-3.5 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center">
-              {wishlistCount > 99 ? '99+' : wishlistCount}
-            </span>
-          )}
-          <span>{tCommon('wishlist')}</span>
+          <div className="relative inline-flex">
+            <Heart className="size-5 shrink-0" />
+            {wishlistCount > 0 && (
+              <span className="absolute -top-1.5 -right-2 min-w-4 h-3.5 px-1 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center">
+                {formatBadge(wishlistCount)}
+              </span>
+            )}
+          </div>
+          <span className="truncate max-w-full px-0.5 leading-tight">{tCommon('wishlist')}</span>
         </Link>
 
         <button
           type="button"
           onClick={openDrawer}
-          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 relative cursor-pointer"
+          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 min-w-0 cursor-pointer"
         >
-          <ShoppingCart className="size-5 text-primary" />
-          {cartCount > 0 && (
-            <span className="absolute top-1 right-5 size-3.5 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center">
-              {cartCount > 99 ? '99+' : cartCount}
-            </span>
-          )}
-          <span className="text-primary font-medium">{tCommon('cart')}</span>
+          <div className="relative inline-flex">
+            <ShoppingCart className="size-5 text-primary shrink-0" />
+            {cartCount > 0 && (
+              <span className="absolute -top-1.5 -right-2 min-w-4 h-3.5 px-1 rounded-full bg-primary text-[9px] font-bold text-primary-foreground flex items-center justify-center">
+                {formatBadge(cartCount)}
+              </span>
+            )}
+          </div>
+          <span className="text-primary font-medium truncate max-w-full px-0.5 leading-tight">
+            {tCommon('cart')}
+          </span>
         </button>
 
         <Link
           href="/account"
-          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 cursor-pointer"
+          className="flex flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors py-1 flex-1 min-w-0 cursor-pointer"
         >
-          <User className="size-5" />
-          <span>{tCommon('account')}</span>
+          <User className="size-5 shrink-0" />
+          <span className="truncate max-w-full px-0.5 leading-tight">{tCommon('account')}</span>
         </Link>
-      </div>
+      </nav>
 
-      {/* Slide-over Mobile Drawer for Categories */}
+      {/* Slide-over Mobile Drawer */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex">
-          {/* Backdrop */}
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
             onClick={onClose}
           />
 
-          {/* Drawer content */}
           <div
             ref={drawerRef}
             role="dialog"
@@ -130,8 +151,8 @@ export function MobileNav({ isOpen, onClose, onOpen }: MobileNavProps) {
             className="relative w-4/5 max-w-sm bg-background border-r border-border h-full flex flex-col p-5 shadow-2xl z-10 overflow-y-auto"
           >
             <div className="flex items-center justify-between pb-4 border-b border-border">
-              <span className="font-semibold text-sm flex items-center gap-2">
-                <ShieldCheck className="size-4 text-primary" />
+              <span className="font-semibold text-sm flex items-center gap-2 text-foreground">
+                <LayoutGrid className="size-4 text-primary" />
                 {tNav('allCategories')}
               </span>
               <Button
@@ -146,36 +167,59 @@ export function MobileNav({ isOpen, onClose, onOpen }: MobileNavProps) {
             </div>
 
             <div className="py-4 space-y-1">
-              {categories.map((cat) => {
-                const Icon = cat.icon;
+              <Link
+                href="/products"
+                onClick={onClose}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-foreground hover:bg-muted/70 transition-colors"
+              >
+                <Layers className="size-4 text-primary" />
+                <span>{tNav('allProductsLink')}</span>
+              </Link>
+              <Link
+                href="/products?featured=true"
+                onClick={onClose}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-primary hover:bg-primary/10 transition-colors"
+              >
+                <Sparkles className="size-4 text-primary" />
+                <span>{tNav('deals')}</span>
+              </Link>
+
+              <div className="pt-2 pb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {tNav('departmentsLabel')}
+              </div>
+
+              {activeCategories.map((cat) => {
+                const Icon = getCategoryIcon(cat.slug);
                 return (
                   <Link
-                    key={cat.id}
-                    href={`/products?category=${cat.id}`}
+                    key={cat.slug}
+                    href={`/products?category=${encodeURIComponent(cat.slug)}`}
                     onClick={onClose}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-muted/70 transition-colors cursor-pointer"
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-foreground hover:bg-muted/70 transition-colors"
                   >
                     <Icon className="size-4 text-primary" />
-                    <span>{cat.label}</span>
+                    <span>{cat.name}</span>
                   </Link>
                 );
               })}
             </div>
 
-            <div className="mt-auto pt-6 border-t border-border space-y-3">
+            <div className="mt-auto pt-4 border-t border-border space-y-2">
               <Link
-                href="/status"
+                href="/account/orders"
                 onClick={onClose}
-                className="block text-xs text-muted-foreground hover:text-primary"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50"
               >
-                {tNav('systemStatusLink')}
+                <Package className="size-4 text-primary" />
+                <span>{tNav('myOrders')}</span>
               </Link>
               <Link
-                href="/admin"
+                href="/account"
                 onClick={onClose}
-                className="block text-xs font-semibold text-primary hover:underline"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50"
               >
-                {tNav('adminDashboardLink')}
+                <User className="size-4 text-primary" />
+                <span>{tCommon('account')}</span>
               </Link>
             </div>
           </div>

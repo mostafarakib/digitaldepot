@@ -1,10 +1,9 @@
 import React from 'react';
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
-import { env } from '@/lib/config';
+import { getPublicCategoryTree, getPublicProducts } from '@/lib/storefront-server';
 import { ProductListing } from '@/components/storefront/product-listing';
 import { buildPageAlternates } from '@/lib/seo';
-import type { StorefrontProductListingResponse, CategoryTreeNode } from '@/lib/catalogue-types';
 
 interface ProductsPageProps {
   params: Promise<{ locale: string }>;
@@ -39,8 +38,6 @@ export async function generateMetadata({
     description = t('brandDescription', { brand: brand.trim() });
   }
 
-  // Clarification 2: Query-based filters are duplicate-content views with canonical pointing to /products.
-  // Search query results must not be indexed to prevent index bloat.
   return {
     title,
     description,
@@ -71,55 +68,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     }
   }
 
-  // Ensure default limit if omitted
   if (!query.has('limit')) {
     query.set('limit', '12');
   }
 
-  // Fetch published products and categories in parallel
-  const [productsRes, categoriesRes] = await Promise.all([
-    fetch(`${env.serverApiUrl}/api/v1/products?${query.toString()}`, {
-      cache: 'no-store',
-      headers: { accept: 'application/json' },
-    }),
-    fetch(`${env.serverApiUrl}/api/v1/categories/tree`, {
-      cache: 'no-store',
-      headers: { accept: 'application/json' },
-    }),
+  const [listingData, categories] = await Promise.all([
+    getPublicProducts(query),
+    getPublicCategoryTree(),
   ]);
-
-  let listingData: StorefrontProductListingResponse = {
-    products: [],
-    facets: { categories: [], brands: [], priceRange: { min: 0, max: 0 } },
-    pagination: {
-      page: 1,
-      limit: 12,
-      total: 0,
-      totalPages: 0,
-      hasNextPage: false,
-      hasPrevPage: false,
-    },
-  };
-
-  let categories: CategoryTreeNode[] = [];
-
-  if (productsRes.ok) {
-    const json = await productsRes.json();
-    if (json.success) {
-      listingData = {
-        products: json.data || [],
-        facets: json.facets || { categories: [], brands: [], priceRange: { min: 0, max: 0 } },
-        pagination: json.pagination || listingData.pagination,
-      };
-    }
-  }
-
-  if (categoriesRes.ok) {
-    const json = await categoriesRes.json();
-    if (json.success && Array.isArray(json.data)) {
-      categories = json.data;
-    }
-  }
 
   return <ProductListing initialData={listingData} categories={categories} />;
 }
