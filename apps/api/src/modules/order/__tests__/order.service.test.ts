@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { prisma } from '../../../lib/prisma.js';
 import { cleanDatabase, testPool } from '../../../test/setup.js';
 import { orderService } from '../order.service.js';
@@ -453,6 +453,28 @@ describe('OrderService', () => {
         where: { variantId: fixture.variant.id },
       });
       expect(invAfter.reservedQuantity).toBe(0);
+    });
+  });
+
+  describe('createOrderCore transaction options', () => {
+    it('configures Prisma interactive transaction with maxWait: 5000 and timeout: 15000', async () => {
+      const fixture = await createCustomerFixture(100000, 10);
+      const txSpy = vi.spyOn(prisma, '$transaction');
+
+      try {
+        await orderService.createOrderCore({
+          userId: fixture.user.id,
+          addressId: fixture.address.id,
+          paymentMethod: 'SSLCOMMERZ',
+        });
+
+        expect(txSpy).toHaveBeenCalledWith(expect.any(Function), {
+          maxWait: 5000,
+          timeout: 15000,
+        });
+      } finally {
+        txSpy.mockRestore();
+      }
     });
   });
 });

@@ -286,7 +286,10 @@ export class OrderService {
     if (outerTx) {
       return execute(outerTx);
     }
-    return await prisma.$transaction(async (tx) => execute(tx));
+    return await prisma.$transaction(async (tx) => execute(tx), {
+      maxWait: 5000,
+      timeout: 15000,
+    });
   }
 
   /**
